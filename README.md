@@ -38,5 +38,6 @@ research/slim $ python eval_image_classifier.py \
   --batch_size=1 \
   --max_num_batches=50 \
   --device=DEVICE \
-  --server=SERVER
+  --server=SERVER \
+  --final_layer_on_device=N  # For mobilenet, must be >= 0 and < 14
 ```

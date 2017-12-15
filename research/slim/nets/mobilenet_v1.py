@@ -210,59 +210,65 @@ def mobilenet_v1_base(inputs,
 
       net = inputs
       for i, conv_def in enumerate(conv_defs):
-        end_point_base = 'Conv2d_%d' % i
+        # MODIFIED BY JSJASON (MOSTLY INDENTATION): START
 
-        if output_stride is not None and current_stride == output_stride:
-          # If we have reached the target output_stride, then we need to employ
-          # atrous convolution with stride=1 and multiply the atrous rate by the
-          # current unit's stride for use in subsequent layers.
-          layer_stride = 1
-          layer_rate = rate
-          rate *= conv_def.stride
-        else:
-          layer_stride = conv_def.stride
-          layer_rate = 1
-          current_stride *= conv_def.stride
+        # layers up to xxx will be put in device
+        env_name = 'device' if i < len(conv_defs) else 'server'
+        with tf.device('/job:%s' % env_name):
+	  end_point_base = 'Conv2d_%d' % i
 
-        if isinstance(conv_def, Conv):
-          end_point = end_point_base
-          net = slim.conv2d(net, depth(conv_def.depth), conv_def.kernel,
-                            stride=conv_def.stride,
-                            normalizer_fn=slim.batch_norm,
-                            scope=end_point)
-          end_points[end_point] = net
-          if end_point == final_endpoint:
-            return net, end_points
+	  if output_stride is not None and current_stride == output_stride:
+	    # If we have reached the target output_stride, then we need to employ
+	    # atrous convolution with stride=1 and multiply the atrous rate by the
+	    # current unit's stride for use in subsequent layers.
+	    layer_stride = 1
+	    layer_rate = rate
+	    rate *= conv_def.stride
+	  else:
+	    layer_stride = conv_def.stride
+	    layer_rate = 1
+	    current_stride *= conv_def.stride
 
-        elif isinstance(conv_def, DepthSepConv):
-          end_point = end_point_base + '_depthwise'
+	  if isinstance(conv_def, Conv):
+	    end_point = end_point_base
+	    net = slim.conv2d(net, depth(conv_def.depth), conv_def.kernel,
+			      stride=conv_def.stride,
+			      normalizer_fn=slim.batch_norm,
+			      scope=end_point)
+	    end_points[end_point] = net
+	    if end_point == final_endpoint:
+	      return net, end_points
 
-          # By passing filters=None
-          # separable_conv2d produces only a depthwise convolution layer
-          net = slim.separable_conv2d(net, None, conv_def.kernel,
-                                      depth_multiplier=1,
-                                      stride=layer_stride,
-                                      rate=layer_rate,
-                                      normalizer_fn=slim.batch_norm,
-                                      scope=end_point)
+	  elif isinstance(conv_def, DepthSepConv):
+	    end_point = end_point_base + '_depthwise'
 
-          end_points[end_point] = net
-          if end_point == final_endpoint:
-            return net, end_points
+	    # By passing filters=None
+	    # separable_conv2d produces only a depthwise convolution layer
+	    net = slim.separable_conv2d(net, None, conv_def.kernel,
+					depth_multiplier=1,
+					stride=layer_stride,
+					rate=layer_rate,
+					normalizer_fn=slim.batch_norm,
+					scope=end_point)
 
-          end_point = end_point_base + '_pointwise'
+	    end_points[end_point] = net
+	    if end_point == final_endpoint:
+	      return net, end_points
 
-          net = slim.conv2d(net, depth(conv_def.depth), [1, 1],
-                            stride=1,
-                            normalizer_fn=slim.batch_norm,
-                            scope=end_point)
+	    end_point = end_point_base + '_pointwise'
 
-          end_points[end_point] = net
-          if end_point == final_endpoint:
-            return net, end_points
-        else:
-          raise ValueError('Unknown convolution type %s for layer %d'
-                           % (conv_def.ltype, i))
+	    net = slim.conv2d(net, depth(conv_def.depth), [1, 1],
+			      stride=1,
+			      normalizer_fn=slim.batch_norm,
+			      scope=end_point)
+
+	    end_points[end_point] = net
+	    if end_point == final_endpoint:
+	      return net, end_points
+	  else:
+	    raise ValueError('Unknown convolution type %s for layer %d'
+			     % (conv_def.ltype, i))
+        # MODIFIED BY JSJASON: END
   raise ValueError('Unknown final endpoint %s' % final_endpoint)
 
 

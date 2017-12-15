@@ -137,7 +137,9 @@ def get_split(split_name, dataset_dir, file_pattern=None, reader=None):
 
   if not file_pattern:
     file_pattern = _FILE_PATTERN
-  file_pattern = os.path.join(dataset_dir, file_pattern % split_name)
+    # MODIFIED BY JSJASON (INDENTATION): START
+    file_pattern = os.path.join(dataset_dir, file_pattern % split_name)
+    # MODIFIED BY JSJASON: END
 
   # Allowing None in the signature so that dataset_factory can use the default.
   if reader is None:
@@ -177,12 +179,15 @@ def get_split(split_name, dataset_dir, file_pattern=None, reader=None):
       keys_to_features, items_to_handlers)
 
   labels_to_names = None
+  '''
+  COMMENTED OUT BY JSJASON: START
   if dataset_utils.has_labels(dataset_dir):
     labels_to_names = dataset_utils.read_label_file(dataset_dir)
   else:
     labels_to_names = create_readable_names_for_imagenet_labels()
     dataset_utils.write_label_file(labels_to_names, dataset_dir)
-
+  COMMENTED OUT BY JSJASON: END
+  '''
   return slim.dataset.Dataset(
       data_sources=file_pattern,
       reader=reader,

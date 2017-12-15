@@ -79,6 +79,14 @@ tf.app.flags.DEFINE_float(
 tf.app.flags.DEFINE_integer(
     'eval_image_size', None, 'Eval image size')
 
+# MODIFIED BY JSJASON: START
+tf.app.flags.DEFINE_string(
+    'device', None, 'ip:host of device')
+
+tf.app.flags.DEFINE_string(
+    'server', None, 'ip:host of server')
+# MODIFIED BY JSJASON: END
+
 FLAGS = tf.app.flags.FLAGS
 
 
@@ -93,8 +101,12 @@ def main(_):
     ######################
     # Select the dataset #
     ######################
+    # MODIFIED BY JSJASON: START
+    # assume imagenet-data/validation-0~9 are present in /home/pi of device
+    file_pattern = [('/home/pi/imagenet-data/validation-%05d-of-00128' % i) for i in range(10)]
     dataset = dataset_factory.get_dataset(
-        FLAGS.dataset_name, FLAGS.dataset_split_name, FLAGS.dataset_dir)
+        FLAGS.dataset_name, FLAGS.dataset_split_name, FLAGS.dataset_dir, file_pattern=file_pattern)
+    # MODIFIED BY JSJASON: END
 
     ####################
     # Select the model #
@@ -107,62 +119,65 @@ def main(_):
     ##############################################################
     # Create a dataset provider that loads data from the dataset #
     ##############################################################
-    provider = slim.dataset_data_provider.DatasetDataProvider(
-        dataset,
-        shuffle=False,
-        common_queue_capacity=2 * FLAGS.batch_size,
-        common_queue_min=FLAGS.batch_size)
-    [image, label] = provider.get(['image', 'label'])
-    label -= FLAGS.labels_offset
+    with tf.device('/job:device'): # ADDED BY JSJASON - data should be generated from device
+      provider = slim.dataset_data_provider.DatasetDataProvider(
+          dataset,
+          shuffle=False,
+          common_queue_capacity=2 * FLAGS.batch_size,
+          common_queue_min=FLAGS.batch_size)
+      [image, label] = provider.get(['image', 'label'])
+      label -= FLAGS.labels_offset
 
     #####################################
     # Select the preprocessing function #
     #####################################
-    preprocessing_name = FLAGS.preprocessing_name or FLAGS.model_name
-    image_preprocessing_fn = preprocessing_factory.get_preprocessing(
-        preprocessing_name,
-        is_training=False)
+      preprocessing_name = FLAGS.preprocessing_name or FLAGS.model_name
+      image_preprocessing_fn = preprocessing_factory.get_preprocessing(
+          preprocessing_name,
+          is_training=False)
 
-    eval_image_size = FLAGS.eval_image_size or network_fn.default_image_size
+      eval_image_size = FLAGS.eval_image_size or network_fn.default_image_size
 
-    image = image_preprocessing_fn(image, eval_image_size, eval_image_size)
+      image = image_preprocessing_fn(image, eval_image_size, eval_image_size)
 
-    images, labels = tf.train.batch(
-        [image, label],
-        batch_size=FLAGS.batch_size,
-        num_threads=FLAGS.num_preprocessing_threads,
-        capacity=5 * FLAGS.batch_size)
+      images, labels = tf.train.batch(
+          [image, label],
+          batch_size=FLAGS.batch_size,
+          num_threads=FLAGS.num_preprocessing_threads,
+          capacity=5 * FLAGS.batch_size)
 
     ####################
     # Define the model #
     ####################
-    logits, _ = network_fn(images)
+    with tf.device('/job:server'): # ADDED BY JSJASON - all ops will be placed on server, unless otherwise specified
+      logits, _ = network_fn(images)
 
-    if FLAGS.moving_average_decay:
-      variable_averages = tf.train.ExponentialMovingAverage(
-          FLAGS.moving_average_decay, tf_global_step)
-      variables_to_restore = variable_averages.variables_to_restore(
-          slim.get_model_variables())
-      variables_to_restore[tf_global_step.op.name] = tf_global_step
-    else:
-      variables_to_restore = slim.get_variables_to_restore()
+      if FLAGS.moving_average_decay:
+	variable_averages = tf.train.ExponentialMovingAverage(
+	    FLAGS.moving_average_decay, tf_global_step)
+	variables_to_restore = variable_averages.variables_to_restore(
+	    slim.get_model_variables())
+	variables_to_restore[tf_global_step.op.name] = tf_global_step
+      else:
+	variables_to_restore = slim.get_variables_to_restore()
 
-    predictions = tf.argmax(logits, 1)
-    labels = tf.squeeze(labels)
+      predictions = tf.argmax(logits, 1)
+      # FIXED BY JSJASON - bug when batch_size=1
+      # labels = tf.squeeze(labels)
 
-    # Define the metrics:
-    names_to_values, names_to_updates = slim.metrics.aggregate_metric_map({
-        'Accuracy': slim.metrics.streaming_accuracy(predictions, labels),
-        'Recall_5': slim.metrics.streaming_recall_at_k(
-            logits, labels, 5),
-    })
+      # Define the metrics:
+      names_to_values, names_to_updates = slim.metrics.aggregate_metric_map({
+	  'Accuracy': slim.metrics.streaming_accuracy(predictions, labels),
+	  'Recall_5': slim.metrics.streaming_recall_at_k(
+	      logits, labels, 5),
+      })
 
-    # Print the summaries to screen.
-    for name, value in names_to_values.items():
-      summary_name = 'eval/%s' % name
-      op = tf.summary.scalar(summary_name, value, collections=[])
-      op = tf.Print(op, [value], summary_name)
-      tf.add_to_collection(tf.GraphKeys.SUMMARIES, op)
+      # Print the summaries to screen.
+      for name, value in names_to_values.items():
+	summary_name = 'eval/%s' % name
+	op = tf.summary.scalar(summary_name, value, collections=[])
+	op = tf.Print(op, [value], summary_name)
+	tf.add_to_collection(tf.GraphKeys.SUMMARIES, op)
 
     # TODO(sguada) use num_epochs=1
     if FLAGS.max_num_batches:
@@ -176,10 +191,22 @@ def main(_):
     else:
       checkpoint_path = FLAGS.checkpoint_path
 
+
+    # ADDED BY JSJASON: START
+    cluster_map = {
+      'server': [FLAGS.server],
+      'device': [FLAGS.device],
+    }
+
+    cluster = tf.train.ClusterSpec(cluster_map)
+    server = tf.train.Server(cluster, job_name='server')
+    # ADDED BY JSJASON: END
+
+
     tf.logging.info('Evaluating %s' % checkpoint_path)
 
     slim.evaluation.evaluate_once(
-        master=FLAGS.master,
+        master=server.target, # MODIFIED BY JSJASON
         checkpoint_path=checkpoint_path,
         logdir=FLAGS.eval_dir,
         num_evals=num_batches,

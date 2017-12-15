@@ -24,11 +24,11 @@ mobilenet_v1_0.25_128.ckpt.meta
 
 ### Server Setup
 - TF 1.3 installed
-- Mobilenet v1 (0.25) checkpoint on server in folder `mobilenet-0.25`
+- Mobilenet v1 (0.25) checkpoint on server in folder `(research/slim/)mobilenet-0.25`
 - Main run command:
 
 ```shell
-python eval_image_classifier.py \
+research/slim $ python eval_image_classifier.py \
   --alsologtostderr \
   --checkpoint_path=mobilenet-0.25/mobilenet_v1_0.25_128.ckpt \
   --dataset_name=imagenet \

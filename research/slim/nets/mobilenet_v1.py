@@ -145,7 +145,8 @@ def mobilenet_v1_base(inputs,
                       depth_multiplier=1.0,
                       conv_defs=None,
                       output_stride=None,
-                      scope=None):
+                      scope=None,
+                      final_layer_on_device=-1): # ADDED BY JSJASON
   """Mobilenet v1.
 
   Constructs a Mobilenet v1 network from inputs to the given final endpoint.
@@ -212,8 +213,11 @@ def mobilenet_v1_base(inputs,
       for i, conv_def in enumerate(conv_defs):
         # MODIFIED BY JSJASON (MOSTLY INDENTATION): START
 
-        # layers up to xxx will be put in device
-        env_name = 'device' if i < len(conv_defs) else 'server'
+        # layers up to final_layer_on_device will be put in device
+        if final_layer_on_device >= len(conv_defs):
+          raise ValueError('final_layer_on_device must be < %d but was %d' % (len(conv_defs), final_layer_on_device))
+
+        env_name = 'device' if i < final_layer_on_device else 'server'
         with tf.device('/job:%s' % env_name):
 	  end_point_base = 'Conv2d_%d' % i
 
@@ -283,7 +287,8 @@ def mobilenet_v1(inputs,
                  spatial_squeeze=True,
                  reuse=None,
                  scope='MobilenetV1',
-                 global_pool=False):
+                 global_pool=False,
+                 final_layer_on_device=-1): # ADDED BY JSJASON
   """Mobilenet v1 model for classification.
 
   Args:
@@ -333,7 +338,8 @@ def mobilenet_v1(inputs,
       net, end_points = mobilenet_v1_base(inputs, scope=scope,
                                           min_depth=min_depth,
                                           depth_multiplier=depth_multiplier,
-                                          conv_defs=conv_defs)
+                                          conv_defs=conv_defs,
+                                          final_layer_on_device=final_layer_on_device) # ADDED BY JSJASON
       with tf.variable_scope('Logits'):
         if global_pool:
           # Global average pooling.

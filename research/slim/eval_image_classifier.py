@@ -85,6 +85,10 @@ tf.app.flags.DEFINE_string(
 
 tf.app.flags.DEFINE_string(
     'server', None, 'ip:host of server')
+
+tf.app.flags.DEFINE_integer(
+    'final_layer_on_device', None,
+    'Index of the final layer to be put onto device')
 # MODIFIED BY JSJASON: END
 
 FLAGS = tf.app.flags.FLAGS
@@ -97,6 +101,10 @@ def main(_):
     raise ValueError('You must supply the dataset directory with --dataset_dir')
   COMMENTED OUT BY JSJASON: END
   '''
+
+  # ADDED BY JSJASON - quick check for a required command line argument
+  if not FLAGS.final_layer_on_device:
+    raise ValueError('You must supply an integer for final_layer_on_device')
 
   tf.logging.set_verbosity(tf.logging.INFO)
   with tf.Graph().as_default():
@@ -154,7 +162,7 @@ def main(_):
     # Define the model #
     ####################
     with tf.device('/job:server'): # ADDED BY JSJASON - all ops will be placed on server, unless otherwise specified
-      logits, _ = network_fn(images)
+      logits, _ = network_fn(images, final_layer_on_device=FLAGS.final_layer_on_device) # MODIFIED BY JSJASON - pass additional argument
 
       if FLAGS.moving_average_decay:
 	variable_averages = tf.train.ExponentialMovingAverage(

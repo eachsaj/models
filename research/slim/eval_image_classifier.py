@@ -91,8 +91,12 @@ FLAGS = tf.app.flags.FLAGS
 
 
 def main(_):
+  '''
+  COMMENTED OUT BY JSJASON: START
   if not FLAGS.dataset_dir:
     raise ValueError('You must supply the dataset directory with --dataset_dir')
+  COMMENTED OUT BY JSJASON: END
+  '''
 
   tf.logging.set_verbosity(tf.logging.INFO)
   with tf.Graph().as_default():

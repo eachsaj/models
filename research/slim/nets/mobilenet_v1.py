@@ -212,6 +212,8 @@ def mobilenet_v1_base(inputs,
       net = inputs
       for i, conv_def in enumerate(conv_defs):
         # MODIFIED BY JSJASON (MOSTLY INDENTATION): START
+        print('Before layer %d: ' % i)
+        print(net)
 
         # layers up to final_layer_on_device will be put in device
         if final_layer_on_device >= len(conv_defs):
@@ -257,6 +259,8 @@ def mobilenet_v1_base(inputs,
 
 	    end_points[end_point] = net
 	    if end_point == final_endpoint:
+              print('Returning...')
+              print(net)
 	      return net, end_points
 
 	    end_point = end_point_base + '_pointwise'
@@ -268,6 +272,8 @@ def mobilenet_v1_base(inputs,
 
 	    end_points[end_point] = net
 	    if end_point == final_endpoint:
+              print('Returning...')
+              print(net)
 	      return net, end_points
 	  else:
 	    raise ValueError('Unknown convolution type %s for layer %d'

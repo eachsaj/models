@@ -19,11 +19,13 @@ from __future__ import division
 from __future__ import print_function
 
 import math
+import sys
 import tensorflow as tf
 
 from datasets import dataset_factory
 from nets import nets_factory
 from preprocessing import preprocessing_factory
+from slim_evaluation import evaluate_once
 
 slim = tf.contrib.slim
 
@@ -164,6 +166,8 @@ def main(_):
     with tf.device('/job:server'): # ADDED BY JSJASON - all ops will be placed on server, unless otherwise specified
       logits, _ = network_fn(images, final_layer_on_device=FLAGS.final_layer_on_device) # MODIFIED BY JSJASON - pass additional argument
 
+      # sys.exit(0)
+
       if FLAGS.moving_average_decay:
 	variable_averages = tf.train.ExponentialMovingAverage(
 	    FLAGS.moving_average_decay, tf_global_step)
@@ -217,7 +221,7 @@ def main(_):
 
     tf.logging.info('Evaluating %s' % checkpoint_path)
 
-    slim.evaluation.evaluate_once(
+    evaluate_once(
         master=server.target, # MODIFIED BY JSJASON
         checkpoint_path=checkpoint_path,
         logdir=FLAGS.eval_dir,

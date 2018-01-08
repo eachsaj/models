@@ -25,12 +25,18 @@ from nets import inception_utils
 slim = tf.contrib.slim
 trunc_normal = lambda stddev: tf.truncated_normal_initializer(0.0, stddev)
 
+LAYERS = ['Conv2d_1a_3x3', 'Conv2d_2a_3x3', 'Conv2d_2b_3x3',
+      'MaxPool_3a_3x3', 'Conv2d_3b_1x1', 'Conv2d_4a_3x3', 'MaxPool_5a_3x3',
+      'Mixed_5b', 'Mixed_5c', 'Mixed_5d', 'Mixed_6a', 'Mixed_6b', 'Mixed_6c',
+      'Mixed_6d', 'Mixed_6e', 'Mixed_7a', 'Mixed_7b', 'Mixed_7c']
+LOCALHOST = 'localhost'
 
 def inception_v3_base(inputs,
                       final_endpoint='Mixed_7c',
                       min_depth=16,
                       depth_multiplier=1.0,
-                      scope=None):
+                      scope=None,
+                      final_layer_on_device=-1):
   """Inception model from http://arxiv.org/abs/1512.00567.
 
   Constructs an Inception v3 network from inputs to the given final endpoint.
@@ -92,6 +98,8 @@ def inception_v3_base(inputs,
   # summaries or losses.
   end_points = {}
 
+  tf.logging.info('Net input: %s', str(inputs))
+
   if depth_multiplier <= 0:
     raise ValueError('depth_multiplier is not greater than zero.')
   depth = lambda d: max(int(d * depth_multiplier), min_depth)
@@ -101,38 +109,59 @@ def inception_v3_base(inputs,
                         stride=1, padding='VALID'):
       # 299 x 299 x 3
       end_point = 'Conv2d_1a_3x3'
-      net = slim.conv2d(inputs, depth(32), [3, 3], stride=2, scope=end_point)
+      target = 'device' if final_layer_on_device >= 0 else 'server'
+      with tf.device('/job:%s' % target):
+        net = slim.conv2d(inputs, depth(32), [3, 3], stride=2, scope=end_point)
       end_points[end_point] = net
+      tf.logging.info('Layer 1: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
       # 149 x 149 x 32
       end_point = 'Conv2d_2a_3x3'
-      net = slim.conv2d(net, depth(32), [3, 3], scope=end_point)
+      target = 'device' if final_layer_on_device >= 1 else 'server'
+      with tf.device('/job:%s' % target):
+        net = slim.conv2d(net, depth(32), [3, 3], scope=end_point)
       end_points[end_point] = net
+      tf.logging.info('Layer 2: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
       # 147 x 147 x 32
       end_point = 'Conv2d_2b_3x3'
-      net = slim.conv2d(net, depth(64), [3, 3], padding='SAME', scope=end_point)
+      target = 'device' if final_layer_on_device >= 2 else 'server'
+      with tf.device('/job:%s' % target):
+        net = slim.conv2d(net, depth(64), [3, 3], padding='SAME', scope=end_point)
       end_points[end_point] = net
+      tf.logging.info('Layer 3: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
       # 147 x 147 x 64
       end_point = 'MaxPool_3a_3x3'
-      net = slim.max_pool2d(net, [3, 3], stride=2, scope=end_point)
+      target = 'device' if final_layer_on_device >= 3 else 'server'
+      with tf.device('/job:%s' % target):
+        net = slim.max_pool2d(net, [3, 3], stride=2, scope=end_point)
       end_points[end_point] = net
+      tf.logging.info('Layer 4: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
       # 73 x 73 x 64
       end_point = 'Conv2d_3b_1x1'
-      net = slim.conv2d(net, depth(80), [1, 1], scope=end_point)
+      target = 'device' if final_layer_on_device >= 4 else 'server'
+      with tf.device('/job:%s' % target):
+        net = slim.conv2d(net, depth(80), [1, 1], scope=end_point)
       end_points[end_point] = net
+      tf.logging.info('Layer 5: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
       # 73 x 73 x 80.
       end_point = 'Conv2d_4a_3x3'
-      net = slim.conv2d(net, depth(192), [3, 3], scope=end_point)
+      target = 'device' if final_layer_on_device >= 5 else 'server'
+      with tf.device('/job:%s' % target):
+        net = slim.conv2d(net, depth(192), [3, 3], scope=end_point)
       end_points[end_point] = net
+      tf.logging.info('Layer 6: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
       # 71 x 71 x 192.
       end_point = 'MaxPool_5a_3x3'
-      net = slim.max_pool2d(net, [3, 3], stride=2, scope=end_point)
+      target = 'device' if final_layer_on_device >= 6 else 'server'
+      with tf.device('/job:%s' % target):
+        net = slim.max_pool2d(net, [3, 3], stride=2, scope=end_point)
       end_points[end_point] = net
+      tf.logging.info('Layer 7: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
       # 35 x 35 x 192.
 
@@ -141,277 +170,312 @@ def inception_v3_base(inputs,
                         stride=1, padding='SAME'):
       # mixed: 35 x 35 x 256.
       end_point = 'Mixed_5b'
-      with tf.variable_scope(end_point):
-        with tf.variable_scope('Branch_0'):
-          branch_0 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
-        with tf.variable_scope('Branch_1'):
-          branch_1 = slim.conv2d(net, depth(48), [1, 1], scope='Conv2d_0a_1x1')
-          branch_1 = slim.conv2d(branch_1, depth(64), [5, 5],
-                                 scope='Conv2d_0b_5x5')
-        with tf.variable_scope('Branch_2'):
-          branch_2 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
-          branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
-                                 scope='Conv2d_0b_3x3')
-          branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
-                                 scope='Conv2d_0c_3x3')
-        with tf.variable_scope('Branch_3'):
-          branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
-          branch_3 = slim.conv2d(branch_3, depth(32), [1, 1],
-                                 scope='Conv2d_0b_1x1')
-        net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+      target = 'device' if final_layer_on_device >= 7 else 'server'
+      with tf.device('/job:%s' % target):
+	with tf.variable_scope(end_point):
+	  with tf.variable_scope('Branch_0'):
+	    branch_0 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
+	  with tf.variable_scope('Branch_1'):
+	    branch_1 = slim.conv2d(net, depth(48), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_1 = slim.conv2d(branch_1, depth(64), [5, 5],
+				   scope='Conv2d_0b_5x5')
+	  with tf.variable_scope('Branch_2'):
+	    branch_2 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
+				   scope='Conv2d_0b_3x3')
+	    branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
+				   scope='Conv2d_0c_3x3')
+	  with tf.variable_scope('Branch_3'):
+	    branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
+	    branch_3 = slim.conv2d(branch_3, depth(32), [1, 1],
+				   scope='Conv2d_0b_1x1')
+	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
+      tf.logging.info('Layer 8: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
 
       # mixed_1: 35 x 35 x 288.
       end_point = 'Mixed_5c'
-      with tf.variable_scope(end_point):
-        with tf.variable_scope('Branch_0'):
-          branch_0 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
-        with tf.variable_scope('Branch_1'):
-          branch_1 = slim.conv2d(net, depth(48), [1, 1], scope='Conv2d_0b_1x1')
-          branch_1 = slim.conv2d(branch_1, depth(64), [5, 5],
-                                 scope='Conv_1_0c_5x5')
-        with tf.variable_scope('Branch_2'):
-          branch_2 = slim.conv2d(net, depth(64), [1, 1],
-                                 scope='Conv2d_0a_1x1')
-          branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
-                                 scope='Conv2d_0b_3x3')
-          branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
-                                 scope='Conv2d_0c_3x3')
-        with tf.variable_scope('Branch_3'):
-          branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
-          branch_3 = slim.conv2d(branch_3, depth(64), [1, 1],
-                                 scope='Conv2d_0b_1x1')
-        net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+      target = 'device' if final_layer_on_device >= 8 else 'server'
+      with tf.device('/job:%s' % target):
+	with tf.variable_scope(end_point):
+	  with tf.variable_scope('Branch_0'):
+	    branch_0 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
+	  with tf.variable_scope('Branch_1'):
+	    branch_1 = slim.conv2d(net, depth(48), [1, 1], scope='Conv2d_0b_1x1')
+	    branch_1 = slim.conv2d(branch_1, depth(64), [5, 5],
+				   scope='Conv_1_0c_5x5')
+	  with tf.variable_scope('Branch_2'):
+	    branch_2 = slim.conv2d(net, depth(64), [1, 1],
+				   scope='Conv2d_0a_1x1')
+	    branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
+				   scope='Conv2d_0b_3x3')
+	    branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
+				   scope='Conv2d_0c_3x3')
+	  with tf.variable_scope('Branch_3'):
+	    branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
+	    branch_3 = slim.conv2d(branch_3, depth(64), [1, 1],
+				   scope='Conv2d_0b_1x1')
+	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
+      tf.logging.info('Layer 9: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
 
       # mixed_2: 35 x 35 x 288.
       end_point = 'Mixed_5d'
-      with tf.variable_scope(end_point):
-        with tf.variable_scope('Branch_0'):
-          branch_0 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
-        with tf.variable_scope('Branch_1'):
-          branch_1 = slim.conv2d(net, depth(48), [1, 1], scope='Conv2d_0a_1x1')
-          branch_1 = slim.conv2d(branch_1, depth(64), [5, 5],
-                                 scope='Conv2d_0b_5x5')
-        with tf.variable_scope('Branch_2'):
-          branch_2 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
-          branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
-                                 scope='Conv2d_0b_3x3')
-          branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
-                                 scope='Conv2d_0c_3x3')
-        with tf.variable_scope('Branch_3'):
-          branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
-          branch_3 = slim.conv2d(branch_3, depth(64), [1, 1],
-                                 scope='Conv2d_0b_1x1')
-        net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+      target = 'device' if final_layer_on_device >= 9 else 'server'
+      with tf.device('/job:%s' % target):
+	with tf.variable_scope(end_point):
+	  with tf.variable_scope('Branch_0'):
+	    branch_0 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
+	  with tf.variable_scope('Branch_1'):
+	    branch_1 = slim.conv2d(net, depth(48), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_1 = slim.conv2d(branch_1, depth(64), [5, 5],
+				   scope='Conv2d_0b_5x5')
+	  with tf.variable_scope('Branch_2'):
+	    branch_2 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
+				   scope='Conv2d_0b_3x3')
+	    branch_2 = slim.conv2d(branch_2, depth(96), [3, 3],
+				   scope='Conv2d_0c_3x3')
+	  with tf.variable_scope('Branch_3'):
+	    branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
+	    branch_3 = slim.conv2d(branch_3, depth(64), [1, 1],
+				   scope='Conv2d_0b_1x1')
+	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
+      tf.logging.info('Layer 10: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
 
       # mixed_3: 17 x 17 x 768.
       end_point = 'Mixed_6a'
-      with tf.variable_scope(end_point):
-        with tf.variable_scope('Branch_0'):
-          branch_0 = slim.conv2d(net, depth(384), [3, 3], stride=2,
-                                 padding='VALID', scope='Conv2d_1a_1x1')
-        with tf.variable_scope('Branch_1'):
-          branch_1 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
-          branch_1 = slim.conv2d(branch_1, depth(96), [3, 3],
-                                 scope='Conv2d_0b_3x3')
-          branch_1 = slim.conv2d(branch_1, depth(96), [3, 3], stride=2,
-                                 padding='VALID', scope='Conv2d_1a_1x1')
-        with tf.variable_scope('Branch_2'):
-          branch_2 = slim.max_pool2d(net, [3, 3], stride=2, padding='VALID',
-                                     scope='MaxPool_1a_3x3')
-        net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2])
+      target = 'device' if final_layer_on_device >= 10 else 'server'
+      with tf.device('/job:%s' % target):
+	with tf.variable_scope(end_point):
+	  with tf.variable_scope('Branch_0'):
+	    branch_0 = slim.conv2d(net, depth(384), [3, 3], stride=2,
+				   padding='VALID', scope='Conv2d_1a_1x1')
+	  with tf.variable_scope('Branch_1'):
+	    branch_1 = slim.conv2d(net, depth(64), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_1 = slim.conv2d(branch_1, depth(96), [3, 3],
+				   scope='Conv2d_0b_3x3')
+	    branch_1 = slim.conv2d(branch_1, depth(96), [3, 3], stride=2,
+				   padding='VALID', scope='Conv2d_1a_1x1')
+	  with tf.variable_scope('Branch_2'):
+	    branch_2 = slim.max_pool2d(net, [3, 3], stride=2, padding='VALID',
+				       scope='MaxPool_1a_3x3')
+	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2])
       end_points[end_point] = net
+      tf.logging.info('Layer 11: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
 
       # mixed4: 17 x 17 x 768.
       end_point = 'Mixed_6b'
-      with tf.variable_scope(end_point):
-        with tf.variable_scope('Branch_0'):
-          branch_0 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
-        with tf.variable_scope('Branch_1'):
-          branch_1 = slim.conv2d(net, depth(128), [1, 1], scope='Conv2d_0a_1x1')
-          branch_1 = slim.conv2d(branch_1, depth(128), [1, 7],
-                                 scope='Conv2d_0b_1x7')
-          branch_1 = slim.conv2d(branch_1, depth(192), [7, 1],
-                                 scope='Conv2d_0c_7x1')
-        with tf.variable_scope('Branch_2'):
-          branch_2 = slim.conv2d(net, depth(128), [1, 1], scope='Conv2d_0a_1x1')
-          branch_2 = slim.conv2d(branch_2, depth(128), [7, 1],
-                                 scope='Conv2d_0b_7x1')
-          branch_2 = slim.conv2d(branch_2, depth(128), [1, 7],
-                                 scope='Conv2d_0c_1x7')
-          branch_2 = slim.conv2d(branch_2, depth(128), [7, 1],
-                                 scope='Conv2d_0d_7x1')
-          branch_2 = slim.conv2d(branch_2, depth(192), [1, 7],
-                                 scope='Conv2d_0e_1x7')
-        with tf.variable_scope('Branch_3'):
-          branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
-          branch_3 = slim.conv2d(branch_3, depth(192), [1, 1],
-                                 scope='Conv2d_0b_1x1')
-        net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+      target = 'device' if final_layer_on_device >= 11 else 'server'
+      with tf.device('/job:%s' % target):
+	with tf.variable_scope(end_point):
+	  with tf.variable_scope('Branch_0'):
+	    branch_0 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
+	  with tf.variable_scope('Branch_1'):
+	    branch_1 = slim.conv2d(net, depth(128), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_1 = slim.conv2d(branch_1, depth(128), [1, 7],
+				   scope='Conv2d_0b_1x7')
+	    branch_1 = slim.conv2d(branch_1, depth(192), [7, 1],
+				   scope='Conv2d_0c_7x1')
+	  with tf.variable_scope('Branch_2'):
+	    branch_2 = slim.conv2d(net, depth(128), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_2 = slim.conv2d(branch_2, depth(128), [7, 1],
+				   scope='Conv2d_0b_7x1')
+	    branch_2 = slim.conv2d(branch_2, depth(128), [1, 7],
+				   scope='Conv2d_0c_1x7')
+	    branch_2 = slim.conv2d(branch_2, depth(128), [7, 1],
+				   scope='Conv2d_0d_7x1')
+	    branch_2 = slim.conv2d(branch_2, depth(192), [1, 7],
+				   scope='Conv2d_0e_1x7')
+	  with tf.variable_scope('Branch_3'):
+	    branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
+	    branch_3 = slim.conv2d(branch_3, depth(192), [1, 1],
+				   scope='Conv2d_0b_1x1')
+	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
+      tf.logging.info('Layer 12: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
 
       # mixed_5: 17 x 17 x 768.
       end_point = 'Mixed_6c'
-      with tf.variable_scope(end_point):
-        with tf.variable_scope('Branch_0'):
-          branch_0 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
-        with tf.variable_scope('Branch_1'):
-          branch_1 = slim.conv2d(net, depth(160), [1, 1], scope='Conv2d_0a_1x1')
-          branch_1 = slim.conv2d(branch_1, depth(160), [1, 7],
-                                 scope='Conv2d_0b_1x7')
-          branch_1 = slim.conv2d(branch_1, depth(192), [7, 1],
-                                 scope='Conv2d_0c_7x1')
-        with tf.variable_scope('Branch_2'):
-          branch_2 = slim.conv2d(net, depth(160), [1, 1], scope='Conv2d_0a_1x1')
-          branch_2 = slim.conv2d(branch_2, depth(160), [7, 1],
-                                 scope='Conv2d_0b_7x1')
-          branch_2 = slim.conv2d(branch_2, depth(160), [1, 7],
-                                 scope='Conv2d_0c_1x7')
-          branch_2 = slim.conv2d(branch_2, depth(160), [7, 1],
-                                 scope='Conv2d_0d_7x1')
-          branch_2 = slim.conv2d(branch_2, depth(192), [1, 7],
-                                 scope='Conv2d_0e_1x7')
-        with tf.variable_scope('Branch_3'):
-          branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
-          branch_3 = slim.conv2d(branch_3, depth(192), [1, 1],
-                                 scope='Conv2d_0b_1x1')
-        net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+      target = 'device' if final_layer_on_device >= 12 else 'server'
+      with tf.device('/job:%s' % target):
+	with tf.variable_scope(end_point):
+	  with tf.variable_scope('Branch_0'):
+	    branch_0 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
+	  with tf.variable_scope('Branch_1'):
+	    branch_1 = slim.conv2d(net, depth(160), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_1 = slim.conv2d(branch_1, depth(160), [1, 7],
+				   scope='Conv2d_0b_1x7')
+	    branch_1 = slim.conv2d(branch_1, depth(192), [7, 1],
+				   scope='Conv2d_0c_7x1')
+	  with tf.variable_scope('Branch_2'):
+	    branch_2 = slim.conv2d(net, depth(160), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_2 = slim.conv2d(branch_2, depth(160), [7, 1],
+				   scope='Conv2d_0b_7x1')
+	    branch_2 = slim.conv2d(branch_2, depth(160), [1, 7],
+				   scope='Conv2d_0c_1x7')
+	    branch_2 = slim.conv2d(branch_2, depth(160), [7, 1],
+				   scope='Conv2d_0d_7x1')
+	    branch_2 = slim.conv2d(branch_2, depth(192), [1, 7],
+				   scope='Conv2d_0e_1x7')
+	  with tf.variable_scope('Branch_3'):
+	    branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
+	    branch_3 = slim.conv2d(branch_3, depth(192), [1, 1],
+				   scope='Conv2d_0b_1x1')
+	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
+      tf.logging.info('Layer 13: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
+
       # mixed_6: 17 x 17 x 768.
       end_point = 'Mixed_6d'
-      with tf.variable_scope(end_point):
-        with tf.variable_scope('Branch_0'):
-          branch_0 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
-        with tf.variable_scope('Branch_1'):
-          branch_1 = slim.conv2d(net, depth(160), [1, 1], scope='Conv2d_0a_1x1')
-          branch_1 = slim.conv2d(branch_1, depth(160), [1, 7],
-                                 scope='Conv2d_0b_1x7')
-          branch_1 = slim.conv2d(branch_1, depth(192), [7, 1],
-                                 scope='Conv2d_0c_7x1')
-        with tf.variable_scope('Branch_2'):
-          branch_2 = slim.conv2d(net, depth(160), [1, 1], scope='Conv2d_0a_1x1')
-          branch_2 = slim.conv2d(branch_2, depth(160), [7, 1],
-                                 scope='Conv2d_0b_7x1')
-          branch_2 = slim.conv2d(branch_2, depth(160), [1, 7],
-                                 scope='Conv2d_0c_1x7')
-          branch_2 = slim.conv2d(branch_2, depth(160), [7, 1],
-                                 scope='Conv2d_0d_7x1')
-          branch_2 = slim.conv2d(branch_2, depth(192), [1, 7],
-                                 scope='Conv2d_0e_1x7')
-        with tf.variable_scope('Branch_3'):
-          branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
-          branch_3 = slim.conv2d(branch_3, depth(192), [1, 1],
-                                 scope='Conv2d_0b_1x1')
-        net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+      target = 'device' if final_layer_on_device >= 13 else 'server'
+      with tf.device('/job:%s' % target):
+	with tf.variable_scope(end_point):
+	  with tf.variable_scope('Branch_0'):
+	    branch_0 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
+	  with tf.variable_scope('Branch_1'):
+	    branch_1 = slim.conv2d(net, depth(160), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_1 = slim.conv2d(branch_1, depth(160), [1, 7],
+				   scope='Conv2d_0b_1x7')
+	    branch_1 = slim.conv2d(branch_1, depth(192), [7, 1],
+				   scope='Conv2d_0c_7x1')
+	  with tf.variable_scope('Branch_2'):
+	    branch_2 = slim.conv2d(net, depth(160), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_2 = slim.conv2d(branch_2, depth(160), [7, 1],
+				   scope='Conv2d_0b_7x1')
+	    branch_2 = slim.conv2d(branch_2, depth(160), [1, 7],
+				   scope='Conv2d_0c_1x7')
+	    branch_2 = slim.conv2d(branch_2, depth(160), [7, 1],
+				   scope='Conv2d_0d_7x1')
+	    branch_2 = slim.conv2d(branch_2, depth(192), [1, 7],
+				   scope='Conv2d_0e_1x7')
+	  with tf.variable_scope('Branch_3'):
+	    branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
+	    branch_3 = slim.conv2d(branch_3, depth(192), [1, 1],
+				   scope='Conv2d_0b_1x1')
+	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
+      tf.logging.info('Layer 14: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
 
       # mixed_7: 17 x 17 x 768.
       end_point = 'Mixed_6e'
-      with tf.variable_scope(end_point):
-        with tf.variable_scope('Branch_0'):
-          branch_0 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
-        with tf.variable_scope('Branch_1'):
-          branch_1 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
-          branch_1 = slim.conv2d(branch_1, depth(192), [1, 7],
-                                 scope='Conv2d_0b_1x7')
-          branch_1 = slim.conv2d(branch_1, depth(192), [7, 1],
-                                 scope='Conv2d_0c_7x1')
-        with tf.variable_scope('Branch_2'):
-          branch_2 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
-          branch_2 = slim.conv2d(branch_2, depth(192), [7, 1],
-                                 scope='Conv2d_0b_7x1')
-          branch_2 = slim.conv2d(branch_2, depth(192), [1, 7],
-                                 scope='Conv2d_0c_1x7')
-          branch_2 = slim.conv2d(branch_2, depth(192), [7, 1],
-                                 scope='Conv2d_0d_7x1')
-          branch_2 = slim.conv2d(branch_2, depth(192), [1, 7],
-                                 scope='Conv2d_0e_1x7')
-        with tf.variable_scope('Branch_3'):
-          branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
-          branch_3 = slim.conv2d(branch_3, depth(192), [1, 1],
-                                 scope='Conv2d_0b_1x1')
-        net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+      target = 'device' if final_layer_on_device >= 14 else 'server'
+      with tf.device('/job:%s' % target):
+	with tf.variable_scope(end_point):
+	  with tf.variable_scope('Branch_0'):
+	    branch_0 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
+	  with tf.variable_scope('Branch_1'):
+	    branch_1 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_1 = slim.conv2d(branch_1, depth(192), [1, 7],
+				   scope='Conv2d_0b_1x7')
+	    branch_1 = slim.conv2d(branch_1, depth(192), [7, 1],
+				   scope='Conv2d_0c_7x1')
+	  with tf.variable_scope('Branch_2'):
+	    branch_2 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_2 = slim.conv2d(branch_2, depth(192), [7, 1],
+				   scope='Conv2d_0b_7x1')
+	    branch_2 = slim.conv2d(branch_2, depth(192), [1, 7],
+				   scope='Conv2d_0c_1x7')
+	    branch_2 = slim.conv2d(branch_2, depth(192), [7, 1],
+				   scope='Conv2d_0d_7x1')
+	    branch_2 = slim.conv2d(branch_2, depth(192), [1, 7],
+				   scope='Conv2d_0e_1x7')
+	  with tf.variable_scope('Branch_3'):
+	    branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
+	    branch_3 = slim.conv2d(branch_3, depth(192), [1, 1],
+				   scope='Conv2d_0b_1x1')
+	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
+      tf.logging.info('Layer 15: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
 
       # mixed_8: 8 x 8 x 1280.
       end_point = 'Mixed_7a'
-      with tf.variable_scope(end_point):
-        with tf.variable_scope('Branch_0'):
-          branch_0 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
-          branch_0 = slim.conv2d(branch_0, depth(320), [3, 3], stride=2,
-                                 padding='VALID', scope='Conv2d_1a_3x3')
-        with tf.variable_scope('Branch_1'):
-          branch_1 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
-          branch_1 = slim.conv2d(branch_1, depth(192), [1, 7],
-                                 scope='Conv2d_0b_1x7')
-          branch_1 = slim.conv2d(branch_1, depth(192), [7, 1],
-                                 scope='Conv2d_0c_7x1')
-          branch_1 = slim.conv2d(branch_1, depth(192), [3, 3], stride=2,
-                                 padding='VALID', scope='Conv2d_1a_3x3')
-        with tf.variable_scope('Branch_2'):
-          branch_2 = slim.max_pool2d(net, [3, 3], stride=2, padding='VALID',
-                                     scope='MaxPool_1a_3x3')
-        net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2])
+      target = 'device' if final_layer_on_device >= 15 else 'server'
+      with tf.device('/job:%s' % target):
+	with tf.variable_scope(end_point):
+	  with tf.variable_scope('Branch_0'):
+	    branch_0 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_0 = slim.conv2d(branch_0, depth(320), [3, 3], stride=2,
+				   padding='VALID', scope='Conv2d_1a_3x3')
+	  with tf.variable_scope('Branch_1'):
+	    branch_1 = slim.conv2d(net, depth(192), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_1 = slim.conv2d(branch_1, depth(192), [1, 7],
+				   scope='Conv2d_0b_1x7')
+	    branch_1 = slim.conv2d(branch_1, depth(192), [7, 1],
+				   scope='Conv2d_0c_7x1')
+	    branch_1 = slim.conv2d(branch_1, depth(192), [3, 3], stride=2,
+				   padding='VALID', scope='Conv2d_1a_3x3')
+	  with tf.variable_scope('Branch_2'):
+	    branch_2 = slim.max_pool2d(net, [3, 3], stride=2, padding='VALID',
+				       scope='MaxPool_1a_3x3')
+	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2])
       end_points[end_point] = net
+      tf.logging.info('Layer 16: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
+
       # mixed_9: 8 x 8 x 2048.
       end_point = 'Mixed_7b'
-      with tf.variable_scope(end_point):
-        with tf.variable_scope('Branch_0'):
-          branch_0 = slim.conv2d(net, depth(320), [1, 1], scope='Conv2d_0a_1x1')
-        with tf.variable_scope('Branch_1'):
-          branch_1 = slim.conv2d(net, depth(384), [1, 1], scope='Conv2d_0a_1x1')
-          branch_1 = tf.concat(axis=3, values=[
-              slim.conv2d(branch_1, depth(384), [1, 3], scope='Conv2d_0b_1x3'),
-              slim.conv2d(branch_1, depth(384), [3, 1], scope='Conv2d_0b_3x1')])
-        with tf.variable_scope('Branch_2'):
-          branch_2 = slim.conv2d(net, depth(448), [1, 1], scope='Conv2d_0a_1x1')
-          branch_2 = slim.conv2d(
-              branch_2, depth(384), [3, 3], scope='Conv2d_0b_3x3')
-          branch_2 = tf.concat(axis=3, values=[
-              slim.conv2d(branch_2, depth(384), [1, 3], scope='Conv2d_0c_1x3'),
-              slim.conv2d(branch_2, depth(384), [3, 1], scope='Conv2d_0d_3x1')])
-        with tf.variable_scope('Branch_3'):
-          branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
-          branch_3 = slim.conv2d(
-              branch_3, depth(192), [1, 1], scope='Conv2d_0b_1x1')
-        net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+      target = 'device' if final_layer_on_device >= 16 else 'server'
+      with tf.device('/job:%s' % target):
+	with tf.variable_scope(end_point):
+	  with tf.variable_scope('Branch_0'):
+	    branch_0 = slim.conv2d(net, depth(320), [1, 1], scope='Conv2d_0a_1x1')
+	  with tf.variable_scope('Branch_1'):
+	    branch_1 = slim.conv2d(net, depth(384), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_1 = tf.concat(axis=3, values=[
+		slim.conv2d(branch_1, depth(384), [1, 3], scope='Conv2d_0b_1x3'),
+		slim.conv2d(branch_1, depth(384), [3, 1], scope='Conv2d_0b_3x1')])
+	  with tf.variable_scope('Branch_2'):
+	    branch_2 = slim.conv2d(net, depth(448), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_2 = slim.conv2d(
+		branch_2, depth(384), [3, 3], scope='Conv2d_0b_3x3')
+	    branch_2 = tf.concat(axis=3, values=[
+		slim.conv2d(branch_2, depth(384), [1, 3], scope='Conv2d_0c_1x3'),
+		slim.conv2d(branch_2, depth(384), [3, 1], scope='Conv2d_0d_3x1')])
+	  with tf.variable_scope('Branch_3'):
+	    branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
+	    branch_3 = slim.conv2d(
+		branch_3, depth(192), [1, 1], scope='Conv2d_0b_1x1')
+	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
+      tf.logging.info('Layer 17: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
 
       # mixed_10: 8 x 8 x 2048.
       end_point = 'Mixed_7c'
-      with tf.variable_scope(end_point):
-        with tf.variable_scope('Branch_0'):
-          branch_0 = slim.conv2d(net, depth(320), [1, 1], scope='Conv2d_0a_1x1')
-        with tf.variable_scope('Branch_1'):
-          branch_1 = slim.conv2d(net, depth(384), [1, 1], scope='Conv2d_0a_1x1')
-          branch_1 = tf.concat(axis=3, values=[
-              slim.conv2d(branch_1, depth(384), [1, 3], scope='Conv2d_0b_1x3'),
-              slim.conv2d(branch_1, depth(384), [3, 1], scope='Conv2d_0c_3x1')])
-        with tf.variable_scope('Branch_2'):
-          branch_2 = slim.conv2d(net, depth(448), [1, 1], scope='Conv2d_0a_1x1')
-          branch_2 = slim.conv2d(
-              branch_2, depth(384), [3, 3], scope='Conv2d_0b_3x3')
-          branch_2 = tf.concat(axis=3, values=[
-              slim.conv2d(branch_2, depth(384), [1, 3], scope='Conv2d_0c_1x3'),
-              slim.conv2d(branch_2, depth(384), [3, 1], scope='Conv2d_0d_3x1')])
-        with tf.variable_scope('Branch_3'):
-          branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
-          branch_3 = slim.conv2d(
-              branch_3, depth(192), [1, 1], scope='Conv2d_0b_1x1')
-        net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
+      target = 'device' if final_layer_on_device >= 17 else 'server'
+      with tf.device('/job:%s' % target):
+	with tf.variable_scope(end_point):
+	  with tf.variable_scope('Branch_0'):
+	    branch_0 = slim.conv2d(net, depth(320), [1, 1], scope='Conv2d_0a_1x1')
+	  with tf.variable_scope('Branch_1'):
+	    branch_1 = slim.conv2d(net, depth(384), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_1 = tf.concat(axis=3, values=[
+		slim.conv2d(branch_1, depth(384), [1, 3], scope='Conv2d_0b_1x3'),
+		slim.conv2d(branch_1, depth(384), [3, 1], scope='Conv2d_0c_3x1')])
+	  with tf.variable_scope('Branch_2'):
+	    branch_2 = slim.conv2d(net, depth(448), [1, 1], scope='Conv2d_0a_1x1')
+	    branch_2 = slim.conv2d(
+		branch_2, depth(384), [3, 3], scope='Conv2d_0b_3x3')
+	    branch_2 = tf.concat(axis=3, values=[
+		slim.conv2d(branch_2, depth(384), [1, 3], scope='Conv2d_0c_1x3'),
+		slim.conv2d(branch_2, depth(384), [3, 1], scope='Conv2d_0d_3x1')])
+	  with tf.variable_scope('Branch_3'):
+	    branch_3 = slim.avg_pool2d(net, [3, 3], scope='AvgPool_0a_3x3')
+	    branch_3 = slim.conv2d(
+		branch_3, depth(192), [1, 1], scope='Conv2d_0b_1x1')
+	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
+      tf.logging.info('Layer 18: %s' , str(net))
       if end_point == final_endpoint: return net, end_points
     raise ValueError('Unknown final endpoint %s' % final_endpoint)
 
@@ -427,7 +491,8 @@ def inception_v3(inputs,
                  reuse=None,
                  create_aux_logits=True,
                  scope='InceptionV3',
-                 global_pool=False):
+                 global_pool=False,
+                 final_layer_on_device=-1):
   """Inception model from http://arxiv.org/abs/1512.00567.
 
   "Rethinking the Inception Architecture for Computer Vision"
@@ -487,7 +552,8 @@ def inception_v3(inputs,
                         is_training=is_training):
       net, end_points = inception_v3_base(
           inputs, scope=scope, min_depth=min_depth,
-          depth_multiplier=depth_multiplier)
+          depth_multiplier=depth_multiplier,
+          final_layer_on_device=final_layer_on_device)
 
       # Auxiliary Head logits
       if create_aux_logits and num_classes:

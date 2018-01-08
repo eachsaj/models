@@ -73,6 +73,7 @@ class _StopAfterNEvalsHook(session_run_hook.SessionRunHook):
 
 def _evaluate_once(checkpoint_path,
                    master='',
+                   final_layer='',
                    scaffold=None,
                    eval_ops=None,
                    feed_dict=None,
@@ -137,6 +138,7 @@ def _evaluate_once(checkpoint_path,
     else:
       eval_ops = [eval_ops, update_eval_step]
 
+  start_time = time.time()
   logging.info('CUSTOM! Starting evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',
                                                          time.gmtime()))
 
@@ -154,18 +156,21 @@ def _evaluate_once(checkpoint_path,
   with monitored_session.MonitoredSession(
       session_creator=session_creator, hooks=hooks) as session:
     if eval_ops is not None:
-      i = 0
       run_metadata = tf.RunMetadata()
       while not session.should_stop():
         session.run(eval_ops, feed_dict,
             options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
             run_metadata=run_metadata)
         trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-        with open('timeline/timeline-%d.ctf.json' % i, 'w') as trace_file:
-          trace_file.write(trace.generate_chrome_trace_format())
-        i += 1
- 
+
+      with open('timeline/timeline-{}.ctf.json'.format(int(final_layer) + 1), 'w') as trace_file:
+        trace_file.write(trace.generate_chrome_trace_format())
+
 
   logging.info('Finished evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',
                                                          time.gmtime()))
+  training_time = (time.time() - start_time) / 3
+  logging.info('Avg single training time: {}'.format(training_time))
+  with open('timeline/training_time.log', 'a+') as trace_file:
+    trace_file.write('{}\n'.format(training_time))
   return final_ops_hook.final_ops_values

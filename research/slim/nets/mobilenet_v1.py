@@ -220,6 +220,7 @@ def mobilenet_v1_base(inputs,
           raise ValueError('final_layer_on_device must be < %d but was %d' % (len(conv_defs), final_layer_on_device))
 
         env_name = 'device' if i < final_layer_on_device else 'server'
+        env_name = 'localhost'
         with tf.device('/job:%s' % env_name):
 	  end_point_base = 'Conv2d_%d' % i
 
@@ -346,6 +347,7 @@ def mobilenet_v1(inputs,
                                           depth_multiplier=depth_multiplier,
                                           conv_defs=conv_defs,
                                           final_layer_on_device=final_layer_on_device) # ADDED BY JSJASON
+      #return net, end_points
       with tf.variable_scope('Logits'):
         if global_pool:
           # Global average pooling.

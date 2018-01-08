@@ -105,7 +105,7 @@ def main(_):
   '''
 
   # ADDED BY JSJASON - quick check for a required command line argument
-  if not FLAGS.final_layer_on_device:
+  if FLAGS.final_layer_on_device is None:
     raise ValueError('You must supply an integer for final_layer_on_device')
 
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -117,7 +117,7 @@ def main(_):
     ######################
     # MODIFIED BY JSJASON: START
     # assume imagenet-data/validation-0~9 are present in /home/pi of device
-    file_pattern = [('/home/pi/imagenet-data/validation-%05d-of-00128' % i) for i in range(10)]
+    file_pattern = [('/home/ubuntu/tmp/imagenet-data/validation-%05d-of-00128' % i) for i in range(10)]
     dataset = dataset_factory.get_dataset(
         FLAGS.dataset_name, FLAGS.dataset_split_name, FLAGS.dataset_dir, file_pattern=file_pattern)
     # MODIFIED BY JSJASON: END
@@ -133,7 +133,7 @@ def main(_):
     ##############################################################
     # Create a dataset provider that loads data from the dataset #
     ##############################################################
-    with tf.device('/job:device'): # ADDED BY JSJASON - data should be generated from device
+    with tf.device('/job:localhost'): # ADDED BY JSJASON - data should be generated from device
       provider = slim.dataset_data_provider.DatasetDataProvider(
           dataset,
           shuffle=False,
@@ -163,7 +163,7 @@ def main(_):
     ####################
     # Define the model #
     ####################
-    with tf.device('/job:server'): # ADDED BY JSJASON - all ops will be placed on server, unless otherwise specified
+    with tf.device('/job:localhost'): # ADDED BY JSJASON - all ops will be placed on server, unless otherwise specified
       logits, _ = network_fn(images, final_layer_on_device=FLAGS.final_layer_on_device) # MODIFIED BY JSJASON - pass additional argument
 
       # sys.exit(0)
@@ -214,15 +214,16 @@ def main(_):
       'device': [FLAGS.device],
     }
 
-    cluster = tf.train.ClusterSpec(cluster_map)
-    server = tf.train.Server(cluster, job_name='server')
+    #cluster = tf.train.ClusterSpec(cluster_map)
+    #server = tf.train.Server(cluster, job_name='server')
     # ADDED BY JSJASON: END
 
 
     tf.logging.info('Evaluating %s' % checkpoint_path)
 
     evaluate_once(
-        master=server.target, # MODIFIED BY JSJASON
+        master=FLAGS.master, # MODIFIED BY JSJASON
+        final_layer=FLAGS.final_layer_on_device, # MODIFIED BY JGLEE
         checkpoint_path=checkpoint_path,
         logdir=FLAGS.eval_dir,
         num_evals=num_batches,

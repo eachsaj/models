@@ -12,6 +12,7 @@ import contrib_evaluation as evaluation
 _USE_DEFAULT = 0
 
 def evaluate_once(master,
+                  final_layer,
                   checkpoint_path,
                   logdir,
                   num_evals=1,
@@ -71,6 +72,7 @@ def evaluate_once(master,
   return evaluation.evaluate_once(
       checkpoint_path,
       master=master,
+      final_layer=final_layer,
       scaffold=monitored_session.Scaffold(
           init_op=initial_op, init_feed_dict=initial_op_feed_dict, saver=saver),
       eval_ops=eval_op,

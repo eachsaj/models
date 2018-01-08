@@ -158,6 +158,7 @@ def _evaluate_once(checkpoint_path,
   hooks.append(final_ops_hook)
 
   redis_con = Redis(redis_server)
+  print('Redis connected (server: {}).'.format(redis_server))
   num_iter = 0
 
   with monitored_session.MonitoredSession(
@@ -170,6 +171,7 @@ def _evaluate_once(checkpoint_path,
             run_metadata=run_metadata)
         trace = timeline.Timeline(step_stats=run_metadata.step_stats)
         redis_con.lpush('tf-queue', cPickle.dumps(val[0]))
+        print('subgraph pushed, tensor shape is', val[0].shape)
         num_iter += 1
 
   logging.info('Finished evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',

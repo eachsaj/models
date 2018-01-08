@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import math
+import os
 import sys
 import tensorflow as tf
 
@@ -85,7 +86,7 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_string(
     'redis', '192.168.1.74', 'ip of redis server')
 
-tf.app.flags.DEFINE_integer(
+tf.app.flags.DEFINE_string(
     'final_layer_on_device', None,
     'tensor name of the final layer to be put onto device')
 # MODIFIED BY JGLEE: END
@@ -114,7 +115,7 @@ def main(_):
     ######################
     # MODIFIED BY JSJASON: START
     # assume imagenet-data/validation-0~9 are present in /home/pi of device
-    file_pattern = [('/home/pi/imagenet-data/validation-%05d-of-00128' % i) for i in range(10)]
+    file_pattern = [os.path.join(os.environ['HOME'], 'imagenet-data/validation-%05d-of-00128' % i) for i in range(10)]
     dataset = dataset_factory.get_dataset(
         FLAGS.dataset_name, FLAGS.dataset_split_name, FLAGS.dataset_dir, file_pattern=file_pattern)
     # MODIFIED BY JSJASON: END
@@ -161,7 +162,7 @@ def main(_):
     # Define the model #
     ####################
     with tf.device('/job:localhost'): # ADDED BY JSJASON - all ops will be placed on server, unless otherwise specified
-      logits, _ = network_fn(images, final_layer_on_device=FLAGS.final_layer_on_device) # MODIFIED BY JSJASON - pass additional argument
+      logits, _ = network_fn(images) # MODIFIED BY JSJASON - pass additional argument
 
       if FLAGS.moving_average_decay:
 	variable_averages = tf.train.ExponentialMovingAverage(

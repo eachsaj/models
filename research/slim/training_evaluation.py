@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import numpy as np
 import time
 
 from tensorflow.python.client import timeline
@@ -153,19 +154,28 @@ def _evaluate_once(checkpoint_path,
       final_ops, final_ops_feed_dict)
   hooks.append(final_ops_hook)
 
+  if False:
+    op = np.load('session_val.npy')
+    tensor = tf.get_default_graph().get_tensor_by_name('MobilenetV1/MobilenetV1/Conv2d_2_pointwise/Relu6:0')
+
+    if feed_dict:
+        feed_dict.update({ tensor: op })
+    else:
+        feed_dict = { tensor: op }
+
   with monitored_session.MonitoredSession(
       session_creator=session_creator, hooks=hooks) as session:
     if eval_ops is not None:
       run_metadata = tf.RunMetadata()
       while not session.should_stop():
-        session.run(eval_ops, feed_dict,
+        val = session.run(eval_ops, feed_dict,
             options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
             run_metadata=run_metadata)
         trace = timeline.Timeline(step_stats=run_metadata.step_stats)
 
+
       with open('timeline/timeline-{}.ctf.json'.format(int(final_layer) + 1), 'w') as trace_file:
         trace_file.write(trace.generate_chrome_trace_format())
-
 
   logging.info('Finished evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',
                                                          time.gmtime()))
@@ -173,4 +183,5 @@ def _evaluate_once(checkpoint_path,
   logging.info('Avg single training time: {}'.format(training_time))
   with open('timeline/training_time.log', 'a+') as trace_file:
     trace_file.write('{}\n'.format(training_time))
+  np.save('session_val', val[0])
   return final_ops_hook.final_ops_values

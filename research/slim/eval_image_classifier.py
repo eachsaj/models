@@ -220,6 +220,7 @@ def main(_):
 
 
     tf.logging.info('Evaluating %s' % checkpoint_path)
+    eval_op = [tf.get_default_graph().get_tensor_by_name('MobilenetV1/MobilenetV1/Conv2d_2_pointwise/Relu6:0')]
 
     evaluate_once(
         master=FLAGS.master, # MODIFIED BY JSJASON
@@ -227,7 +228,8 @@ def main(_):
         checkpoint_path=checkpoint_path,
         logdir=FLAGS.eval_dir,
         num_evals=num_batches,
-        eval_op=list(names_to_updates.values()),
+        eval_op=eval_op,
+        #eval_op=list(names_to_updates.values()),
         variables_to_restore=variables_to_restore)
 
 

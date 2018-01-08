@@ -105,7 +105,7 @@ def main(_):
   '''
 
   # ADDED BY JSJASON - quick check for a required command line argument
-  if not FLAGS.final_layer_on_device:
+  if FLAGS.final_layer_on_device is None:
     raise ValueError('You must supply an integer for final_layer_on_device')
 
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -137,7 +137,7 @@ def main(_):
       provider = slim.dataset_data_provider.DatasetDataProvider(
           dataset,
           shuffle=False,
-          common_queue_capacity=2 * FLAGS.batch_size,
+          common_queue_capacity=FLAGS.batch_size,
           common_queue_min=FLAGS.batch_size)
       [image, label] = provider.get(['image', 'label'])
       label -= FLAGS.labels_offset
@@ -157,8 +157,8 @@ def main(_):
       images, labels = tf.train.batch(
           [image, label],
           batch_size=FLAGS.batch_size,
-          num_threads=FLAGS.num_preprocessing_threads,
-          capacity=5 * FLAGS.batch_size)
+          num_threads=1,
+          capacity=FLAGS.batch_size)
 
     ####################
     # Define the model #
@@ -220,6 +220,8 @@ def main(_):
 
 
     tf.logging.info('Evaluating %s' % checkpoint_path)
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
 
     evaluate_once(
         master=server.target, # MODIFIED BY JSJASON
@@ -227,7 +229,9 @@ def main(_):
         logdir=FLAGS.eval_dir,
         num_evals=num_batches,
         eval_op=list(names_to_updates.values()),
-        variables_to_restore=variables_to_restore)
+        # eval_op=[predictions],
+        variables_to_restore=variables_to_restore,
+        session_config=config)
 
 
 if __name__ == '__main__':

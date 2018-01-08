@@ -119,10 +119,8 @@ def _evaluate_once(checkpoint_path,
     The fetched values of `final_ops` or `None` if `final_ops` is `None`.
   """
   eval_step = _get_or_create_eval_step()
-
   # Prepare the run hooks.
   hooks = hooks or []
-
   if eval_ops is not None:
     update_eval_step = state_ops.assign_add(eval_step, 1)
 
@@ -137,8 +135,7 @@ def _evaluate_once(checkpoint_path,
     else:
       eval_ops = [eval_ops, update_eval_step]
 
-  logging.info('CUSTOM! Starting evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',
-                                                         time.gmtime()))
+  logging.info('CUSTOM! Starting evaluation at %f' , time.time())
 
   # Prepare the session creator.
   session_creator = monitored_session.ChiefSessionCreator(
@@ -153,17 +150,27 @@ def _evaluate_once(checkpoint_path,
 
   with monitored_session.MonitoredSession(
       session_creator=session_creator, hooks=hooks) as session:
+    logging.info('First run is about to start: %f', time.time())
     if eval_ops is not None:
       i = 0
       run_metadata = tf.RunMetadata()
+      t = time.time()
       while not session.should_stop():
-        session.run(eval_ops, feed_dict,
-            options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
-            run_metadata=run_metadata)
-        trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-        with open('timeline/timeline-%d.ctf.json' % i, 'w') as trace_file:
-          trace_file.write(trace.generate_chrome_trace_format())
+        if i == 0 or i == 99:
+          session.run(eval_ops, feed_dict,
+              options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
+              run_metadata=run_metadata)
+        else:
+          session.run(eval_ops, feed_dict,
+              options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE))
+        dt = time.time() - t
+        logging.info('Iteration %d, %f seconds.', i, dt)
+        if i == 0 or i == 99:
+          trace = timeline.Timeline(step_stats=run_metadata.step_stats)
+          with open('timeline/timeline-%d.ctf.json' % i, 'w') as trace_file:
+            trace_file.write(trace.generate_chrome_trace_format())
         i += 1
+        t = time.time()
  
 
   logging.info('Finished evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',

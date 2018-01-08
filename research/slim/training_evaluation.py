@@ -158,18 +158,22 @@ def _evaluate_once(checkpoint_path,
   hooks.append(final_ops_hook)
 
   redis_con = Redis(redis_server)
+  print('Redis connected (server: {}). waiting device push'.format(redis_server))
+  op = cPickle.loads(redis_con.blpop('tf-queue'))
+  tensor = tf.get_default_graph().get_tensor_by_name(final_layer)
+  feed_dict = { tensor: op }
   num_iter = 0
+  print('Pop from redis-queue ', tensor, op.shape)
 
   with monitored_session.MonitoredSession(
       session_creator=session_creator, hooks=hooks) as session:
     if eval_ops is not None:
       run_metadata = tf.RunMetadata()
       while not session.should_stop():
-        val = session.run(eval_ops, feed_dict,
+        session.run(eval_ops, feed_dict,
             options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
             run_metadata=run_metadata)
         trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-        redis_con.lpush('tf-queue', cPickle.dumps(val[0]))
         num_iter += 1
 
   logging.info('Finished evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',

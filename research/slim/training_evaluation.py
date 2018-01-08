@@ -3,7 +3,9 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
+import cPickle
 import time
+from redis import Redis
 
 from tensorflow.python.client import timeline
 from tensorflow.python.framework import dtypes
@@ -75,6 +77,7 @@ class _StopAfterNEvalsHook(session_run_hook.SessionRunHook):
 def _evaluate_once(checkpoint_path,
                    master='',
                    final_layer='',
+                   redis_server='',
                    scaffold=None,
                    eval_ops=None,
                    feed_dict=None,
@@ -154,14 +157,8 @@ def _evaluate_once(checkpoint_path,
       final_ops, final_ops_feed_dict)
   hooks.append(final_ops_hook)
 
-  if False:
-    op = np.load('session_val.npy')
-    tensor = tf.get_default_graph().get_tensor_by_name('MobilenetV1/MobilenetV1/Conv2d_2_pointwise/Relu6:0')
-
-    if feed_dict:
-        feed_dict.update({ tensor: op })
-    else:
-        feed_dict = { tensor: op }
+  redis_con = Redis(redis_server)
+  num_iter = 0
 
   with monitored_session.MonitoredSession(
       session_creator=session_creator, hooks=hooks) as session:
@@ -172,16 +169,14 @@ def _evaluate_once(checkpoint_path,
             options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
             run_metadata=run_metadata)
         trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-
-
-      with open('timeline/timeline-{}.ctf.json'.format(int(final_layer) + 1), 'w') as trace_file:
-        trace_file.write(trace.generate_chrome_trace_format())
+        redis_con.lpush('tf-queue', cPickle.dumps(val[0]))
+        num_iter += 1
 
   logging.info('Finished evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',
                                                          time.gmtime()))
-  training_time = (time.time() - start_time) / 3
+  training_time = (time.time() - start_time) / num_iter
   logging.info('Avg single training time: {}'.format(training_time))
-  with open('timeline/training_time.log', 'a+') as trace_file:
+  with open('timeline/training_time.log', 'w') as trace_file:
     trace_file.write('{}\n'.format(training_time))
-  np.save('session_val', val[0])
+
   return final_ops_hook.final_ops_values

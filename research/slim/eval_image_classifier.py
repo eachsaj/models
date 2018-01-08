@@ -81,17 +81,14 @@ tf.app.flags.DEFINE_float(
 tf.app.flags.DEFINE_integer(
     'eval_image_size', None, 'Eval image size')
 
-# MODIFIED BY JSJASON: START
+# MODIFIED BY JSGLEE: START
 tf.app.flags.DEFINE_string(
-    'device', None, 'ip:host of device')
-
-tf.app.flags.DEFINE_string(
-    'server', None, 'ip:host of server')
+    'redis', '192.168.1.74', 'ip of redis server')
 
 tf.app.flags.DEFINE_integer(
     'final_layer_on_device', None,
-    'Index of the final layer to be put onto device')
-# MODIFIED BY JSJASON: END
+    'tensor name of the final layer to be put onto device')
+# MODIFIED BY JGLEE: END
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -117,7 +114,7 @@ def main(_):
     ######################
     # MODIFIED BY JSJASON: START
     # assume imagenet-data/validation-0~9 are present in /home/pi of device
-    file_pattern = [('/home/ubuntu/tmp/imagenet-data/validation-%05d-of-00128' % i) for i in range(10)]
+    file_pattern = [('/home/pi/imagenet-data/validation-%05d-of-00128' % i) for i in range(10)]
     dataset = dataset_factory.get_dataset(
         FLAGS.dataset_name, FLAGS.dataset_split_name, FLAGS.dataset_dir, file_pattern=file_pattern)
     # MODIFIED BY JSJASON: END
@@ -166,8 +163,6 @@ def main(_):
     with tf.device('/job:localhost'): # ADDED BY JSJASON - all ops will be placed on server, unless otherwise specified
       logits, _ = network_fn(images, final_layer_on_device=FLAGS.final_layer_on_device) # MODIFIED BY JSJASON - pass additional argument
 
-      # sys.exit(0)
-
       if FLAGS.moving_average_decay:
 	variable_averages = tf.train.ExponentialMovingAverage(
 	    FLAGS.moving_average_decay, tf_global_step)
@@ -181,20 +176,6 @@ def main(_):
       # FIXED BY JSJASON - bug when batch_size=1
       # labels = tf.squeeze(labels)
 
-      # Define the metrics:
-      names_to_values, names_to_updates = slim.metrics.aggregate_metric_map({
-	  'Accuracy': slim.metrics.streaming_accuracy(predictions, labels),
-	  'Recall_5': slim.metrics.streaming_recall_at_k(
-	      logits, labels, 5),
-      })
-
-      # Print the summaries to screen.
-      for name, value in names_to_values.items():
-	summary_name = 'eval/%s' % name
-	op = tf.summary.scalar(summary_name, value, collections=[])
-	op = tf.Print(op, [value], summary_name)
-	tf.add_to_collection(tf.GraphKeys.SUMMARIES, op)
-
     # TODO(sguada) use num_epochs=1
     if FLAGS.max_num_batches:
       num_batches = FLAGS.max_num_batches
@@ -207,31 +188,18 @@ def main(_):
     else:
       checkpoint_path = FLAGS.checkpoint_path
 
-
-    # ADDED BY JSJASON: START
-    cluster_map = {
-      'server': [FLAGS.server],
-      'device': [FLAGS.device],
-    }
-
-    #cluster = tf.train.ClusterSpec(cluster_map)
-    #server = tf.train.Server(cluster, job_name='server')
-    # ADDED BY JSJASON: END
-
-
     tf.logging.info('Evaluating %s' % checkpoint_path)
-    eval_op = [tf.get_default_graph().get_tensor_by_name('MobilenetV1/MobilenetV1/Conv2d_2_pointwise/Relu6:0')]
+    eval_op = [tf.get_default_graph().get_tensor_by_name(FLAGS.final_layer_on_device)]
 
     evaluate_once(
         master=FLAGS.master, # MODIFIED BY JSJASON
         final_layer=FLAGS.final_layer_on_device, # MODIFIED BY JGLEE
+        redis_server=FLAGS.redis, # MODIFIED BY JGLEE
         checkpoint_path=checkpoint_path,
         logdir=FLAGS.eval_dir,
         num_evals=num_batches,
         eval_op=eval_op,
-        #eval_op=list(names_to_updates.values()),
         variables_to_restore=variables_to_restore)
-
 
 if __name__ == '__main__':
   tf.app.run()

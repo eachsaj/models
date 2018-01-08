@@ -13,6 +13,7 @@ _USE_DEFAULT = 0
 
 def evaluate_once(master,
                   final_layer,
+                  redis_server,
                   checkpoint_path,
                   logdir,
                   num_evals=1,
@@ -73,6 +74,7 @@ def evaluate_once(master,
       checkpoint_path,
       master=master,
       final_layer=final_layer,
+      redis_server=redis_server,
       scaffold=monitored_session.Scaffold(
           init_op=initial_op, init_feed_dict=initial_op_feed_dict, saver=saver),
       eval_ops=eval_op,

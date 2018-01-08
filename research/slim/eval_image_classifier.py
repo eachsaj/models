@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import math
+import os
 import sys
 import tensorflow as tf
 
@@ -114,7 +115,7 @@ def main(_):
     ######################
     # MODIFIED BY JSJASON: START
     # assume imagenet-data/validation-0~9 are present in /home/pi of device
-    file_pattern = [('/home/pi/imagenet-data/validation-%05d-of-00128' % i) for i in range(10)]
+    file_pattern = [os.path.join(os.environ['HOME'], 'imagenet-data/validation-%05d-of-00128' % i) for i in range(10)]
     dataset = dataset_factory.get_dataset(
         FLAGS.dataset_name, FLAGS.dataset_split_name, FLAGS.dataset_dir, file_pattern=file_pattern)
     # MODIFIED BY JSJASON: END

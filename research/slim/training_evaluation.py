@@ -2,7 +2,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import numpy as np
 import cPickle
 import time
 from redis import Redis
@@ -70,9 +69,7 @@ class _StopAfterNEvalsHook(session_run_hook.SessionRunHook):
   def after_run(self, run_context, run_values):
     evals_completed = run_values.results['evals_completed']
     if self._log_progress:
-      logging.info('Evaluation [%d/%d]', evals_completed, self._num_evals)
-    if evals_completed >= self._num_evals:
-      run_context.request_stop()
+      logging.info('Evaluation [%d]', evals_completed)
 
 def _evaluate_once(checkpoint_path,
                    master='',
@@ -142,7 +139,6 @@ def _evaluate_once(checkpoint_path,
     else:
       eval_ops = [eval_ops, update_eval_step]
 
-  start_time = time.time()
   logging.info('CUSTOM! Starting evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',
                                                          time.gmtime()))
 
@@ -159,28 +155,22 @@ def _evaluate_once(checkpoint_path,
 
   redis_con = Redis(redis_server)
   print('Redis connected (server: {}). waiting device push'.format(redis_server))
-  op = cPickle.loads(redis_con.blpop('tf-queue'))
-  tensor = tf.get_default_graph().get_tensor_by_name(final_layer)
-  feed_dict = { tensor: op }
-  num_iter = 0
-  print('Pop from redis-queue ', tensor, op.shape)
 
   with monitored_session.MonitoredSession(
       session_creator=session_creator, hooks=hooks) as session:
     if eval_ops is not None:
       run_metadata = tf.RunMetadata()
-      while not session.should_stop():
+      while True:
+        op = cPickle.loads(redis_con.blpop('tf-queue')[1])
+        tensor = tf.get_default_graph().get_tensor_by_name(final_layer)
+        feed_dict = { tensor: op }
+        print('Pop from redis-queue ', tensor, op.shape)
+
         session.run(eval_ops, feed_dict,
             options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
             run_metadata=run_metadata)
-        trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-        num_iter += 1
+        #trace = timeline.Timeline(step_stats=run_metadata.step_stats)
 
   logging.info('Finished evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',
                                                          time.gmtime()))
-  training_time = (time.time() - start_time) / num_iter
-  logging.info('Avg single training time: {}'.format(training_time))
-  with open('timeline/training_time.log', 'w') as trace_file:
-    trace_file.write('{}\n'.format(training_time))
-
   return final_ops_hook.final_ops_values

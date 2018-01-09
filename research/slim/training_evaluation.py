@@ -19,6 +19,7 @@ from tensorflow.python.training import session_run_hook
 
 import tensorflow as tf
 
+
 def _get_or_create_eval_step():
   """Gets or creates the eval step `Tensor`.
   Returns:
@@ -153,7 +154,7 @@ def _evaluate_once(checkpoint_path,
       final_ops, final_ops_feed_dict)
   hooks.append(final_ops_hook)
 
-  redis_con = Redis(redis_server)
+  redis_con = Redis(*redis_server.split(':')) if ':' in redis_server else Redis(redis_server)
   print('Redis connected (server: {}). waiting device push'.format(redis_server))
 
   with monitored_session.MonitoredSession(

@@ -295,7 +295,8 @@ def mobilenet_v1(inputs,
                  reuse=None,
                  scope='MobilenetV1',
                  global_pool=False,
-                 final_layer_on_device=-1): # ADDED BY JSJASON
+                 final_layer_on_device=-1,
+                 final_endpoint='Conv2d_13_pointwise'): # ADDED BY JSJASON
   """Mobilenet v1 model for classification.
 
   Args:
@@ -347,7 +348,7 @@ def mobilenet_v1(inputs,
                                           depth_multiplier=depth_multiplier,
                                           conv_defs=conv_defs,
                                           final_layer_on_device=final_layer_on_device) # ADDED BY JSJASON
-      #return net, end_points
+      return net, end_points
       with tf.variable_scope('Logits'):
         if global_pool:
           # Global average pooling.

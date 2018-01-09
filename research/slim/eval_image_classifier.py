@@ -162,7 +162,8 @@ def main(_):
     # Define the model #
     ####################
     with tf.device('/job:localhost'): # ADDED BY JSJASON - all ops will be placed on server, unless otherwise specified
-      logits, _ = network_fn(images) # MODIFIED BY JSJASON - pass additional argument
+      final_endpoint = FLAGS.final_layer_on_device.split('/')[-2]
+      logits, _ = network_fn(images) if final_endpoint is None else network_fn(images, final_endpoint=final_endpoint)# MODIFIED BY JSJASON - pass additional argument
 
       if FLAGS.moving_average_decay:
 	variable_averages = tf.train.ExponentialMovingAverage(
@@ -173,7 +174,7 @@ def main(_):
       else:
 	variables_to_restore = slim.get_variables_to_restore()
 
-      predictions = tf.argmax(logits, 1)
+      # predictions = tf.argmax(logits, 1)
       # FIXED BY JSJASON - bug when batch_size=1
       # labels = tf.squeeze(labels)
 
@@ -190,7 +191,9 @@ def main(_):
       checkpoint_path = FLAGS.checkpoint_path
 
     tf.logging.info('Evaluating %s' % checkpoint_path)
+    print(logits)
     eval_op = [tf.get_default_graph().get_tensor_by_name(FLAGS.final_layer_on_device)]
+    print(eval_op)
 
     evaluate_once(
         master=FLAGS.master, # MODIFIED BY JSJASON

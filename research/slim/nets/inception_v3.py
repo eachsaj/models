@@ -95,6 +95,7 @@ def inception_v3_base(inputs,
   if depth_multiplier <= 0:
     raise ValueError('depth_multiplier is not greater than zero.')
   depth = lambda d: max(int(d * depth_multiplier), min_depth)
+  print('Truncating Inceptionv3 at ' + final_endpoint)
 
   with tf.variable_scope(scope, 'InceptionV3', [inputs]):
     with slim.arg_scope([slim.conv2d, slim.max_pool2d, slim.avg_pool2d],
@@ -427,7 +428,8 @@ def inception_v3(inputs,
                  reuse=None,
                  create_aux_logits=True,
                  scope='InceptionV3',
-                 global_pool=False):
+                 global_pool=False,
+                 final_endpoint='Mixed_7c'):
   """Inception model from http://arxiv.org/abs/1512.00567.
 
   "Rethinking the Inception Architecture for Computer Vision"
@@ -487,7 +489,11 @@ def inception_v3(inputs,
                         is_training=is_training):
       net, end_points = inception_v3_base(
           inputs, scope=scope, min_depth=min_depth,
-          depth_multiplier=depth_multiplier)
+          depth_multiplier=depth_multiplier,
+          final_endpoint=final_endpoint)
+
+      return net, end_points
+    '''
 
       # Auxiliary Head logits
       if create_aux_logits and num_classes:
@@ -542,6 +548,7 @@ def inception_v3(inputs,
       end_points['Logits'] = logits
       end_points['Predictions'] = prediction_fn(logits, scope='Predictions')
   return logits, end_points
+  '''
 inception_v3.default_image_size = 299
 
 

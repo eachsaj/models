@@ -142,9 +142,9 @@ def _evaluate_once(checkpoint_path,
     else:
       eval_ops = [eval_ops, update_eval_step]
 
-  start_time = time.time()
   logging.info('CUSTOM! Starting evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',
                                                          time.gmtime()))
+  start_time = time.time()
 
   # Prepare the session creator.
   session_creator = monitored_session.ChiefSessionCreator(
@@ -163,6 +163,7 @@ def _evaluate_once(checkpoint_path,
 
   with monitored_session.MonitoredSession(
       session_creator=session_creator, hooks=hooks) as session:
+    session_start_time = time.time()
     if eval_ops is not None:
       run_metadata = tf.RunMetadata()
       while not session.should_stop():
@@ -176,7 +177,8 @@ def _evaluate_once(checkpoint_path,
 
   logging.info('Finished evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',
                                                          time.gmtime()))
-  training_time = (time.time() - start_time) / num_iter
+  training_time = (time.time() - session_start_time) / num_iter
+  logging.info('Session init time: {}'.format(session_start_time - start_time))
   logging.info('Avg single training time: {}'.format(training_time))
   with open('timeline/training_time.log', 'w') as trace_file:
     trace_file.write('{}\n'.format(training_time))

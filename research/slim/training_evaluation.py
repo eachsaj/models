@@ -2,7 +2,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import numpy as np
 import cPickle
 import time
 from redis import Redis
@@ -19,6 +18,7 @@ from tensorflow.python.training import monitored_session
 from tensorflow.python.training import session_run_hook
 
 import tensorflow as tf
+
 
 def _get_or_create_eval_step():
   """Gets or creates the eval step `Tensor`.
@@ -157,7 +157,7 @@ def _evaluate_once(checkpoint_path,
       final_ops, final_ops_feed_dict)
   hooks.append(final_ops_hook)
 
-  redis_con = Redis(redis_server)
+  redis_con = Redis(*redis_server.split(':')) if ':' in redis_server else Redis(redis_server)
   print('Redis connected (server: {}).'.format(redis_server))
   num_iter = 0
 
@@ -170,7 +170,7 @@ def _evaluate_once(checkpoint_path,
         val = session.run(eval_ops, feed_dict,
             options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
             run_metadata=run_metadata)
-        trace = timeline.Timeline(step_stats=run_metadata.step_stats)
+        #trace = timeline.Timeline(step_stats=run_metadata.step_stats)
         redis_con.lpush('tf-queue', cPickle.dumps(val[0]))
         print('subgraph pushed, tensor shape is', val[0].shape)
         num_iter += 1

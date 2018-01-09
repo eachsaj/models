@@ -84,7 +84,7 @@ tf.app.flags.DEFINE_integer(
 
 # MODIFIED BY JSGLEE: START
 tf.app.flags.DEFINE_string(
-    'redis', '192.168.1.74', 'ip of redis server')
+    'redis', '192.168.1.74', 'ip of redis server (6379 is default port)')
 
 tf.app.flags.DEFINE_string(
     'final_layer_on_device', None,

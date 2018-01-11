@@ -6,6 +6,7 @@ import cPickle
 import time
 import thread
 from redis import Redis
+import paho.mqtt.client as mqtt
 
 from tensorflow.python.client import timeline
 from tensorflow.python.framework import dtypes
@@ -161,6 +162,7 @@ def _evaluate_once(checkpoint_path,
 
   num_iter = 0
   thread.start_new_thread(send_queue, (redis_server, ))
+  #thread.start_new_thread(send_mqtt, (redis_server, ))
 
   with monitored_session.MonitoredSession(
       session_creator=session_creator, hooks=hooks) as session:
@@ -191,11 +193,23 @@ def _evaluate_once(checkpoint_path,
 
   return final_ops_hook.final_ops_values
 
-def send_queue(redis_server):
+def send_redis_queue(redis_server):
   redis_con = Redis(*redis_server.split(':')) if ':' in redis_server else Redis(redis_server)
   print('Redis connected (server: {}).'.format(redis_server))
   while True:
     if intermediate_data_queue:
       redis_con.lpush('tf-queue', intermediate_data_queue.pop(0))
+    else:
+      time.sleep(0.1)
+
+def send_mqtt():
+  client = mqtt.Client(mqtt_server)
+  client.connect(mqtt_server)
+  client.loop_start()
+
+  print('MQTT connected (server: {}).'.format(mqtt_server))
+  while True:
+    if intermediate_data_queue:
+      client.publish('tf-queue', intermediate_data_queue.pop(0))
     else:
       time.sleep(0.1)

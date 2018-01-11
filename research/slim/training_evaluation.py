@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import cPickle
 import time
+import thread
 from redis import Redis
 
 from tensorflow.python.client import timeline
@@ -19,6 +20,7 @@ from tensorflow.python.training import session_run_hook
 
 import tensorflow as tf
 
+intermediate_data_queue = []
 
 def _get_or_create_eval_step():
   """Gets or creates the eval step `Tensor`.
@@ -157,9 +159,8 @@ def _evaluate_once(checkpoint_path,
       final_ops, final_ops_feed_dict)
   hooks.append(final_ops_hook)
 
-  redis_con = Redis(*redis_server.split(':')) if ':' in redis_server else Redis(redis_server)
-  print('Redis connected (server: {}).'.format(redis_server))
   num_iter = 0
+  thread.start_new_thread(send_queue, (redis_server, ))
 
   with monitored_session.MonitoredSession(
       session_creator=session_creator, hooks=hooks) as session:
@@ -167,12 +168,17 @@ def _evaluate_once(checkpoint_path,
     if eval_ops is not None:
       run_metadata = tf.RunMetadata()
       while not session.should_stop():
+        t1 = time.time()
         val = session.run(eval_ops, feed_dict,
             options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
             run_metadata=run_metadata)
         #trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-        redis_con.lpush('tf-queue', cPickle.dumps(val[0]))
-        print('subgraph pushed, tensor shape is', val[0].shape)
+        t2 = time.time()
+        ser_data = cPickle.dumps(val[0])
+        t3 = time.time()
+        intermediate_data_queue.append(ser_data)
+        #print('subgraph pushed, tensor shape is', val[0].shape)
+        print('comp: {}, cPickle serialize: {}, end: {}'.format(t2 - t1, t3 - t2, time.time() - t3))
         num_iter += 1
 
   logging.info('Finished evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',
@@ -184,3 +190,12 @@ def _evaluate_once(checkpoint_path,
     trace_file.write('{}\n'.format(training_time))
 
   return final_ops_hook.final_ops_values
+
+def send_queue(redis_server):
+  redis_con = Redis(*redis_server.split(':')) if ':' in redis_server else Redis(redis_server)
+  print('Redis connected (server: {}).'.format(redis_server))
+  while True:
+    if intermediate_data_queue:
+      redis_con.lpush('tf-queue', intermediate_data_queue.pop(0))
+    else:
+      time.sleep(0.1)

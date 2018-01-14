@@ -30,6 +30,17 @@ LAYERS = ['Conv2d_1a_3x3', 'Conv2d_2a_3x3', 'Conv2d_2b_3x3',
       'Mixed_5b', 'Mixed_5c', 'Mixed_5d', 'Mixed_6a', 'Mixed_6b', 'Mixed_6c',
       'Mixed_6d', 'Mixed_6e', 'Mixed_7a', 'Mixed_7b', 'Mixed_7c']
 LOCALHOST = 'localhost'
+SERVER = 'server'
+
+def insert_queue(net):
+  with tf.device('/job:%s' % SERVER):
+    q = tf.FIFOQueue(10, dtypes=[net.dtype], shapes=[net.shape], shared_name='shared_queue')
+    enq = q.enqueue(net)
+    qr = tf.train.QueueRunner(queue=q, enqueue_ops=[enq])
+    tf.train.add_queue_runner(qr)
+    tf.add_to_collection('SPL_queue_size', q.size())
+    return q.dequeue()
+
 
 def inception_v3_base(inputs,
                       final_endpoint='Mixed_7c',
@@ -109,59 +120,73 @@ def inception_v3_base(inputs,
                         stride=1, padding='VALID'):
       # 299 x 299 x 3
       end_point = 'Conv2d_1a_3x3'
-      target = 'device' if final_layer_on_device >= 0 else 'server'
+      target = 'device' if final_layer_on_device >= 0 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.conv2d(inputs, depth(32), [3, 3], stride=2, scope=end_point)
       end_points[end_point] = net
       tf.logging.info('Layer 1: %s' , str(net))
+      if final_layer_on_device == 0:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
       # 149 x 149 x 32
       end_point = 'Conv2d_2a_3x3'
-      target = 'device' if final_layer_on_device >= 1 else 'server'
+      target = 'device' if final_layer_on_device >= 1 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.conv2d(net, depth(32), [3, 3], scope=end_point)
       end_points[end_point] = net
       tf.logging.info('Layer 2: %s' , str(net))
+      if final_layer_on_device == 1:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
       # 147 x 147 x 32
       end_point = 'Conv2d_2b_3x3'
-      target = 'device' if final_layer_on_device >= 2 else 'server'
+      target = 'device' if final_layer_on_device >= 2 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.conv2d(net, depth(64), [3, 3], padding='SAME', scope=end_point)
       end_points[end_point] = net
       tf.logging.info('Layer 3: %s' , str(net))
+      if final_layer_on_device == 2:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
       # 147 x 147 x 64
       end_point = 'MaxPool_3a_3x3'
-      target = 'device' if final_layer_on_device >= 3 else 'server'
+      target = 'device' if final_layer_on_device >= 3 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.max_pool2d(net, [3, 3], stride=2, scope=end_point)
       end_points[end_point] = net
       tf.logging.info('Layer 4: %s' , str(net))
+      if final_layer_on_device == 3:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
       # 73 x 73 x 64
       end_point = 'Conv2d_3b_1x1'
-      target = 'device' if final_layer_on_device >= 4 else 'server'
+      target = 'device' if final_layer_on_device >= 4 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.conv2d(net, depth(80), [1, 1], scope=end_point)
       end_points[end_point] = net
       tf.logging.info('Layer 5: %s' , str(net))
+      if final_layer_on_device == 4:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
       # 73 x 73 x 80.
       end_point = 'Conv2d_4a_3x3'
-      target = 'device' if final_layer_on_device >= 5 else 'server'
+      target = 'device' if final_layer_on_device >= 5 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.conv2d(net, depth(192), [3, 3], scope=end_point)
       end_points[end_point] = net
       tf.logging.info('Layer 6: %s' , str(net))
+      if final_layer_on_device == 5:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
       # 71 x 71 x 192.
       end_point = 'MaxPool_5a_3x3'
-      target = 'device' if final_layer_on_device >= 6 else 'server'
+      target = 'device' if final_layer_on_device >= 6 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.max_pool2d(net, [3, 3], stride=2, scope=end_point)
       end_points[end_point] = net
       tf.logging.info('Layer 7: %s' , str(net))
+      if final_layer_on_device == 6:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
       # 35 x 35 x 192.
 
@@ -170,7 +195,7 @@ def inception_v3_base(inputs,
                         stride=1, padding='SAME'):
       # mixed: 35 x 35 x 256.
       end_point = 'Mixed_5b'
-      target = 'device' if final_layer_on_device >= 7 else 'server'
+      target = 'device' if final_layer_on_device >= 7 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -192,11 +217,13 @@ def inception_v3_base(inputs,
 	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
       tf.logging.info('Layer 8: %s' , str(net))
+      if final_layer_on_device == 7:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
 
       # mixed_1: 35 x 35 x 288.
       end_point = 'Mixed_5c'
-      target = 'device' if final_layer_on_device >= 8 else 'server'
+      target = 'device' if final_layer_on_device >= 8 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -219,11 +246,13 @@ def inception_v3_base(inputs,
 	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
       tf.logging.info('Layer 9: %s' , str(net))
+      if final_layer_on_device == 8:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
 
       # mixed_2: 35 x 35 x 288.
       end_point = 'Mixed_5d'
-      target = 'device' if final_layer_on_device >= 9 else 'server'
+      target = 'device' if final_layer_on_device >= 9 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -245,11 +274,13 @@ def inception_v3_base(inputs,
 	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
       tf.logging.info('Layer 10: %s' , str(net))
+      if final_layer_on_device == 9:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
 
       # mixed_3: 17 x 17 x 768.
       end_point = 'Mixed_6a'
-      target = 'device' if final_layer_on_device >= 10 else 'server'
+      target = 'device' if final_layer_on_device >= 10 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -267,11 +298,13 @@ def inception_v3_base(inputs,
 	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2])
       end_points[end_point] = net
       tf.logging.info('Layer 11: %s' , str(net))
+      if final_layer_on_device == 10:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
 
       # mixed4: 17 x 17 x 768.
       end_point = 'Mixed_6b'
-      target = 'device' if final_layer_on_device >= 11 else 'server'
+      target = 'device' if final_layer_on_device >= 11 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -299,11 +332,13 @@ def inception_v3_base(inputs,
 	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
       tf.logging.info('Layer 12: %s' , str(net))
+      if final_layer_on_device == 11:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
 
       # mixed_5: 17 x 17 x 768.
       end_point = 'Mixed_6c'
-      target = 'device' if final_layer_on_device >= 12 else 'server'
+      target = 'device' if final_layer_on_device >= 12 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -331,11 +366,13 @@ def inception_v3_base(inputs,
 	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
       tf.logging.info('Layer 13: %s' , str(net))
+      if final_layer_on_device == 12:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
 
       # mixed_6: 17 x 17 x 768.
       end_point = 'Mixed_6d'
-      target = 'device' if final_layer_on_device >= 13 else 'server'
+      target = 'device' if final_layer_on_device >= 13 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -363,11 +400,13 @@ def inception_v3_base(inputs,
 	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
       tf.logging.info('Layer 14: %s' , str(net))
+      if final_layer_on_device == 13:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
 
       # mixed_7: 17 x 17 x 768.
       end_point = 'Mixed_6e'
-      target = 'device' if final_layer_on_device >= 14 else 'server'
+      target = 'device' if final_layer_on_device >= 14 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -395,11 +434,13 @@ def inception_v3_base(inputs,
 	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
       tf.logging.info('Layer 15: %s' , str(net))
+      if final_layer_on_device == 14:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
 
       # mixed_8: 8 x 8 x 1280.
       end_point = 'Mixed_7a'
-      target = 'device' if final_layer_on_device >= 15 else 'server'
+      target = 'device' if final_layer_on_device >= 15 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -420,11 +461,13 @@ def inception_v3_base(inputs,
 	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2])
       end_points[end_point] = net
       tf.logging.info('Layer 16: %s' , str(net))
+      if final_layer_on_device == 15:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
 
       # mixed_9: 8 x 8 x 2048.
       end_point = 'Mixed_7b'
-      target = 'device' if final_layer_on_device >= 16 else 'server'
+      target = 'device' if final_layer_on_device >= 16 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -448,11 +491,13 @@ def inception_v3_base(inputs,
 	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
       tf.logging.info('Layer 17: %s' , str(net))
+      if final_layer_on_device == 16:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
 
       # mixed_10: 8 x 8 x 2048.
       end_point = 'Mixed_7c'
-      target = 'device' if final_layer_on_device >= 17 else 'server'
+      target = 'device' if final_layer_on_device >= 17 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -476,6 +521,8 @@ def inception_v3_base(inputs,
 	  net = tf.concat(axis=3, values=[branch_0, branch_1, branch_2, branch_3])
       end_points[end_point] = net
       tf.logging.info('Layer 18: %s' , str(net))
+      if final_layer_on_device == 17:
+        net = insert_queue(net)
       if end_point == final_endpoint: return net, end_points
     raise ValueError('Unknown final endpoint %s' % final_endpoint)
 

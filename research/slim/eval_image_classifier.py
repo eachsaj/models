@@ -208,6 +208,9 @@ def main(_):
       checkpoint_path = FLAGS.checkpoint_path
 
 
+    qs = tf.get_collection('SPL_queue_size')
+    print('Queue size op: ' + str(qs))
+
     # ADDED BY JSJASON: START
     cluster_map = {
       'server': [FLAGS.server],
@@ -228,8 +231,8 @@ def main(_):
         checkpoint_path=checkpoint_path,
         logdir=FLAGS.eval_dir,
         num_evals=num_batches,
-        eval_op=list(names_to_updates.values()),
-        # eval_op=[predictions],
+        eval_op=list(names_to_updates.values()) + qs,
+        # eval_op=[predictions] + qs,
         variables_to_restore=variables_to_restore,
         session_config=config)
 

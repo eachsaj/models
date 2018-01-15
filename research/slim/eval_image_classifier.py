@@ -164,7 +164,7 @@ def main(_):
     # Define the model #
     ####################
     with tf.device('/job:server'): # ADDED BY JSJASON - all ops will be placed on server, unless otherwise specified
-      logits, _ = network_fn(images, final_layer_on_device=FLAGS.final_layer_on_device) # MODIFIED BY JSJASON - pass additional argument
+      logits, _ = network_fn(images, num_devices=len(FLAGS.device.split(',')), final_layer_on_device=FLAGS.final_layer_on_device) # MODIFIED BY JSJASON - pass additional argument
 
       # sys.exit(0)
 
@@ -213,8 +213,8 @@ def main(_):
 
     # ADDED BY JSJASON: START
     cluster_map = {
-      'server': [FLAGS.server],
-      'device': [FLAGS.device],
+      'server': FLAGS.server.split(','),
+      'device': FLAGS.device.split(','),
     }
 
     cluster = tf.train.ClusterSpec(cluster_map)

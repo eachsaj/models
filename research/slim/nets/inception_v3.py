@@ -47,6 +47,7 @@ def inception_v3_base(inputs,
                       min_depth=16,
                       depth_multiplier=1.0,
                       scope=None,
+                      task_index=0,
                       final_layer_on_device=-1):
   """Inception model from http://arxiv.org/abs/1512.00567.
 
@@ -114,13 +115,14 @@ def inception_v3_base(inputs,
   if depth_multiplier <= 0:
     raise ValueError('depth_multiplier is not greater than zero.')
   depth = lambda d: max(int(d * depth_multiplier), min_depth)
+  device = 'device/task:{}'.format(task_index)
 
   with tf.variable_scope(scope, 'InceptionV3', [inputs]):
     with slim.arg_scope([slim.conv2d, slim.max_pool2d, slim.avg_pool2d],
                         stride=1, padding='VALID'):
       # 299 x 299 x 3
       end_point = 'Conv2d_1a_3x3'
-      target = 'device' if final_layer_on_device >= 0 else SERVER
+      target = device if final_layer_on_device >= 0 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.conv2d(inputs, depth(32), [3, 3], stride=2, scope=end_point)
       end_points[end_point] = net
@@ -130,7 +132,7 @@ def inception_v3_base(inputs,
       if end_point == final_endpoint: return net, end_points
       # 149 x 149 x 32
       end_point = 'Conv2d_2a_3x3'
-      target = 'device' if final_layer_on_device >= 1 else SERVER
+      target = device if final_layer_on_device >= 1 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.conv2d(net, depth(32), [3, 3], scope=end_point)
       end_points[end_point] = net
@@ -140,7 +142,7 @@ def inception_v3_base(inputs,
       if end_point == final_endpoint: return net, end_points
       # 147 x 147 x 32
       end_point = 'Conv2d_2b_3x3'
-      target = 'device' if final_layer_on_device >= 2 else SERVER
+      target = device if final_layer_on_device >= 2 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.conv2d(net, depth(64), [3, 3], padding='SAME', scope=end_point)
       end_points[end_point] = net
@@ -150,7 +152,7 @@ def inception_v3_base(inputs,
       if end_point == final_endpoint: return net, end_points
       # 147 x 147 x 64
       end_point = 'MaxPool_3a_3x3'
-      target = 'device' if final_layer_on_device >= 3 else SERVER
+      target = device if final_layer_on_device >= 3 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.max_pool2d(net, [3, 3], stride=2, scope=end_point)
       end_points[end_point] = net
@@ -160,7 +162,7 @@ def inception_v3_base(inputs,
       if end_point == final_endpoint: return net, end_points
       # 73 x 73 x 64
       end_point = 'Conv2d_3b_1x1'
-      target = 'device' if final_layer_on_device >= 4 else SERVER
+      target = device if final_layer_on_device >= 4 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.conv2d(net, depth(80), [1, 1], scope=end_point)
       end_points[end_point] = net
@@ -170,7 +172,7 @@ def inception_v3_base(inputs,
       if end_point == final_endpoint: return net, end_points
       # 73 x 73 x 80.
       end_point = 'Conv2d_4a_3x3'
-      target = 'device' if final_layer_on_device >= 5 else SERVER
+      target = device if final_layer_on_device >= 5 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.conv2d(net, depth(192), [3, 3], scope=end_point)
       end_points[end_point] = net
@@ -180,7 +182,7 @@ def inception_v3_base(inputs,
       if end_point == final_endpoint: return net, end_points
       # 71 x 71 x 192.
       end_point = 'MaxPool_5a_3x3'
-      target = 'device' if final_layer_on_device >= 6 else SERVER
+      target = device if final_layer_on_device >= 6 else SERVER
       with tf.device('/job:%s' % target):
         net = slim.max_pool2d(net, [3, 3], stride=2, scope=end_point)
       end_points[end_point] = net
@@ -195,7 +197,7 @@ def inception_v3_base(inputs,
                         stride=1, padding='SAME'):
       # mixed: 35 x 35 x 256.
       end_point = 'Mixed_5b'
-      target = 'device' if final_layer_on_device >= 7 else SERVER
+      target = device if final_layer_on_device >= 7 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -223,7 +225,7 @@ def inception_v3_base(inputs,
 
       # mixed_1: 35 x 35 x 288.
       end_point = 'Mixed_5c'
-      target = 'device' if final_layer_on_device >= 8 else SERVER
+      target = device if final_layer_on_device >= 8 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -252,7 +254,7 @@ def inception_v3_base(inputs,
 
       # mixed_2: 35 x 35 x 288.
       end_point = 'Mixed_5d'
-      target = 'device' if final_layer_on_device >= 9 else SERVER
+      target = device if final_layer_on_device >= 9 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -280,7 +282,7 @@ def inception_v3_base(inputs,
 
       # mixed_3: 17 x 17 x 768.
       end_point = 'Mixed_6a'
-      target = 'device' if final_layer_on_device >= 10 else SERVER
+      target = device if final_layer_on_device >= 10 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -304,7 +306,7 @@ def inception_v3_base(inputs,
 
       # mixed4: 17 x 17 x 768.
       end_point = 'Mixed_6b'
-      target = 'device' if final_layer_on_device >= 11 else SERVER
+      target = device if final_layer_on_device >= 11 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -338,7 +340,7 @@ def inception_v3_base(inputs,
 
       # mixed_5: 17 x 17 x 768.
       end_point = 'Mixed_6c'
-      target = 'device' if final_layer_on_device >= 12 else SERVER
+      target = device if final_layer_on_device >= 12 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -372,7 +374,7 @@ def inception_v3_base(inputs,
 
       # mixed_6: 17 x 17 x 768.
       end_point = 'Mixed_6d'
-      target = 'device' if final_layer_on_device >= 13 else SERVER
+      target = device if final_layer_on_device >= 13 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -406,7 +408,7 @@ def inception_v3_base(inputs,
 
       # mixed_7: 17 x 17 x 768.
       end_point = 'Mixed_6e'
-      target = 'device' if final_layer_on_device >= 14 else SERVER
+      target = device if final_layer_on_device >= 14 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -440,7 +442,7 @@ def inception_v3_base(inputs,
 
       # mixed_8: 8 x 8 x 1280.
       end_point = 'Mixed_7a'
-      target = 'device' if final_layer_on_device >= 15 else SERVER
+      target = device if final_layer_on_device >= 15 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -467,7 +469,7 @@ def inception_v3_base(inputs,
 
       # mixed_9: 8 x 8 x 2048.
       end_point = 'Mixed_7b'
-      target = 'device' if final_layer_on_device >= 16 else SERVER
+      target = device if final_layer_on_device >= 16 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -497,7 +499,7 @@ def inception_v3_base(inputs,
 
       # mixed_10: 8 x 8 x 2048.
       end_point = 'Mixed_7c'
-      target = 'device' if final_layer_on_device >= 17 else SERVER
+      target = device if final_layer_on_device >= 17 else SERVER
       with tf.device('/job:%s' % target):
 	with tf.variable_scope(end_point):
 	  with tf.variable_scope('Branch_0'):
@@ -539,6 +541,7 @@ def inception_v3(inputs,
                  create_aux_logits=True,
                  scope='InceptionV3',
                  global_pool=False,
+                 num_devices=1,
                  final_layer_on_device=-1):
   """Inception model from http://arxiv.org/abs/1512.00567.
 
@@ -593,14 +596,19 @@ def inception_v3(inputs,
   if depth_multiplier <= 0:
     raise ValueError('depth_multiplier is not greater than zero.')
   depth = lambda d: max(int(d * depth_multiplier), min_depth)
+  final_endpoints = ['Conv2d_1a_3x3', 'Conv2d_2a_3x3', 'Conv2d_2b_3x3', 'MaxPool_3a_3x3', 'Conv2d_3b_1x1', 'Conv2d_4a_3x3', 'MaxPool_5a_3x3',
+                     'Mixed_5b', 'Mixed_5c', 'Mixed_5d', 'Mixed_6a', 'Mixed_6b', 'Mixed_6c', 'Mixed_6d', 'Mixed_6e', 'Mixed_7a', 'Mixed_7b', 'Mixed_7c']
 
   with tf.variable_scope(scope, 'InceptionV3', [inputs], reuse=reuse) as scope:
     with slim.arg_scope([slim.batch_norm, slim.dropout],
                         is_training=is_training):
-      net, end_points = inception_v3_base(
-          inputs, scope=scope, min_depth=min_depth,
-          depth_multiplier=depth_multiplier,
-          final_layer_on_device=final_layer_on_device)
+      for task_index in range(num_devices):
+        net, end_points = inception_v3_base(
+            inputs, scope=scope, min_depth=min_depth,
+            depth_multiplier=depth_multiplier,
+            task_index=task_index,
+            final_endpoint=final_endpoints[final_layer_on_device] if task_index > 0 else final_endpoints[-1],
+            final_layer_on_device=final_layer_on_device)
 
       # Auxiliary Head logits
       if create_aux_logits and num_classes:

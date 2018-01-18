@@ -140,7 +140,8 @@ def _evaluate_once(checkpoint_path,
   # Prepare the session creator.
   session_creator = monitored_session.ChiefSessionCreator(
       scaffold=scaffold,
-      checkpoint_filename_with_path=checkpoint_path,
+      #checkpoint_filename_with_path=checkpoint_path
+      checkpoint_filename_with_path=None,
       master=master,
       config=config)
 
@@ -151,27 +152,28 @@ def _evaluate_once(checkpoint_path,
   with monitored_session.MonitoredSession(
       session_creator=session_creator, hooks=hooks) as session:
     logging.info('First run is about to start: %f', time.time())
+    file_writer = tf.summary.FileWriter('logs', session.graph)
     if eval_ops is not None:
       i = 0
       run_metadata = tf.RunMetadata()
       t = time.time()
       while not session.should_stop():
         if i == 0 or i == 99:
-          session.run(eval_ops, feed_dict,
+          res = session.run(eval_ops, feed_dict,
               options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
               run_metadata=run_metadata)
         else:
-          session.run(eval_ops, feed_dict,
+          res = session.run(eval_ops, feed_dict,
               options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE))
         dt = time.time() - t
-        logging.info('Iteration %d, %f seconds.', i, dt)
+        logging.info('Iteration %d, %f seconds. (queue size : %d)', i, dt, res[-2])
         if i == 0 or i == 99:
           trace = timeline.Timeline(step_stats=run_metadata.step_stats)
           with open('timeline/timeline-%d.ctf.json' % i, 'w') as trace_file:
             trace_file.write(trace.generate_chrome_trace_format())
         i += 1
         t = time.time()
- 
+
 
   logging.info('Finished evaluation at ' + time.strftime('%Y-%m-%d-%H:%M:%S',
                                                          time.gmtime()))

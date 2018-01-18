@@ -164,7 +164,11 @@ def main(_):
     # Define the model #
     ####################
     with tf.device('/job:server'): # ADDED BY JSJASON - all ops will be placed on server, unless otherwise specified
-      logits, _ = network_fn(images, num_devices=len(FLAGS.device.split(',')), final_layer_on_device=FLAGS.final_layer_on_device) # MODIFIED BY JSJASON - pass additional argument
+      for task_index in range(len(FLAGS.device.split(','))):
+          if task_index == 0:
+            logits, _ = network_fn(images, final_layer_on_device=FLAGS.final_layer_on_device) # MODIFIED BY JSJASON - pass additional argument
+          else:
+            network_fn(images, task_index=task_index, final_layer_on_device=FLAGS.final_layer_on_device) # MODIFIED BY JSJASON - pass additional argument
 
       # sys.exit(0)
 

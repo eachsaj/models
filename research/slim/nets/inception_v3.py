@@ -541,7 +541,7 @@ def inception_v3(inputs,
                  create_aux_logits=True,
                  scope='InceptionV3',
                  global_pool=False,
-                 num_devices=1,
+                 task_index=0,
                  final_layer_on_device=-1):
   """Inception model from http://arxiv.org/abs/1512.00567.
 
@@ -602,13 +602,14 @@ def inception_v3(inputs,
   with tf.variable_scope(scope, 'InceptionV3', [inputs], reuse=reuse) as scope:
     with slim.arg_scope([slim.batch_norm, slim.dropout],
                         is_training=is_training):
-      for task_index in range(num_devices):
+      with tf.variable_scope('task_scope_{}'.format(task_index)) as task_scope:
         net, end_points = inception_v3_base(
-            inputs, scope=scope, min_depth=min_depth,
-            depth_multiplier=depth_multiplier,
-            task_index=task_index,
-            final_endpoint=final_endpoints[final_layer_on_device] if task_index > 0 else final_endpoints[-1],
-            final_layer_on_device=final_layer_on_device)
+                inputs, scope=task_scope, min_depth=min_depth,
+                depth_multiplier=depth_multiplier,
+                task_index=task_index,
+                final_endpoint=final_endpoints[final_layer_on_device] if task_index > 0 else final_endpoints[-1],
+                final_layer_on_device=final_layer_on_device)
+      if task_index > 0: return net
 
       # Auxiliary Head logits
       if create_aux_logits and num_classes:

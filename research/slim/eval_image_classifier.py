@@ -91,6 +91,15 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_integer(
     'final_layer_on_device', None,
     'Index of the final layer to be put onto device')
+
+tf.app.flags.DEFINE_integer(
+    'prof_iter_init', 0, 'iteration number to start device-side enqueue prof')
+
+tf.app.flags.DEFINE_integer(
+    'prof_iter_period', 10, 'iteration period for device-side enqueue prof')
+
+tf.app.flags.DEFINE_integer(
+    'prof_iter_final', 100, 'iteration number to finish device-side enqueue prof')
 # MODIFIED BY JSJASON: END
 
 FLAGS = tf.app.flags.FLAGS

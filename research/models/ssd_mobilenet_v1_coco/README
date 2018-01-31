@@ -1,0 +1,3 @@
+download ssd_mobilenet_v1_coco checkpoint from tf model zoo and untar
+
+wget http://download.tensorflow.org/models/object_detection/ssd_mobilenet_v1_coco_2017_11_17.tar.gz

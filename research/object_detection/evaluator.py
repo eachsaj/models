@@ -113,7 +113,7 @@ def get_evaluators(eval_config, categories):
 
 
 def evaluate(create_input_dict_fn, create_model_fn, eval_config, categories,
-             checkpoint_dir, eval_dir):
+             checkpoint_dir, eval_dir, master=''):
   """Evaluation function for detection models.
 
   Args:
@@ -205,7 +205,7 @@ def evaluate(create_input_dict_fn, create_model_fn, eval_config, categories,
       max_number_of_evaluations=(1 if eval_config.ignore_groundtruth else
                                  eval_config.max_evals
                                  if eval_config.max_evals else None),
-      master=eval_config.eval_master,
+      master=master or eval_config.eval_master,
       save_graph=eval_config.save_graph,
       save_graph_dir=(eval_dir if eval_config.save_graph else ''))
 

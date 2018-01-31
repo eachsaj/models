@@ -111,6 +111,7 @@ import functools
 import tensorflow as tf
 
 slim = tf.contrib.slim
+FLAGS = tf.app.flags.FLAGS
 
 # Conv and DepthSepConv namedtuple define layers of the MobileNet architecture
 # Conv defines 3x3 convolution layers
@@ -187,6 +188,10 @@ def mobilenet_v1_base(inputs,
   depth = lambda d: max(int(d * depth_multiplier), min_depth)
   end_points = {}
 
+  print('final_layer_on_device', FLAGS.final_layer_on_device)
+  if FLAGS.final_layer_on_device != -1:
+    final_layer_on_device = FLAGS.final_layer_on_device
+
   # Used to find thinned depths for each layer.
   if depth_multiplier <= 0:
     raise ValueError('depth_multiplier is not greater than zero.')
@@ -220,6 +225,7 @@ def mobilenet_v1_base(inputs,
           raise ValueError('final_layer_on_device must be < %d but was %d' % (len(conv_defs), final_layer_on_device))
 
         env_name = 'device' if i < final_layer_on_device else 'server'
+        env_name = 'localhost' if final_layer_on_device == -1 else env_name
         with tf.device('/job:%s' % env_name):
 	  end_point_base = 'Conv2d_%d' % i
 

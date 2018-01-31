@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 """Common functions for repeatedly evaluating a checkpoint."""
-import logging
+#import logging
 import os
 import time
 
@@ -27,6 +27,7 @@ from object_detection.core import standard_fields as fields
 from object_detection.utils import label_map_util
 from object_detection.utils import ops
 from object_detection.utils import visualization_utils as vis_utils
+from tensorflow.python.platform import tf_logging as logging
 
 slim = tf.contrib.slim
 
@@ -248,8 +249,8 @@ def _run_checkpoint_once(tensor_dict,
   with tf.contrib.slim.queues.QueueRunners(sess):
     try:
       for batch in range(int(num_batches)):
-        if (batch + 1) % 100 == 0:
-          logging.info('Running eval ops batch %d/%d', batch + 1, num_batches)
+        #if (batch + 1) % 100 == 0:
+        logging.info('Running eval ops batch %d/%d', batch + 1, num_batches)
         if not batch_processor:
           try:
             result_dict = sess.run(tensor_dict)
@@ -388,6 +389,7 @@ def repeated_checkpoint_run(tensor_dict,
       break
     time_to_next_eval = start + eval_interval_secs - time.time()
     if time_to_next_eval > 0:
+      logging.info('sleeping {}s'.format(time_to_next_eval))
       time.sleep(time_to_next_eval)
 
   return metrics

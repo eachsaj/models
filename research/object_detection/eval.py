@@ -54,7 +54,7 @@ from object_detection.utils import config_util
 from object_detection.utils import label_map_util
 
 
-tf.logging.set_verbosity(tf.logging.INFO)
+tf.logging.set_verbosity(tf.logging.DEBUG)
 
 flags = tf.app.flags
 flags.DEFINE_boolean('eval_training_data', False,
@@ -76,6 +76,17 @@ flags.DEFINE_string('model_config_path', '',
 flags.DEFINE_boolean('run_once', False, 'Option to only run a single pass of '
                      'evaluation. Overrides the `max_evals` parameter in the '
                      'provided config.')
+# MODIFIED BY JSJASON: START
+flags.DEFINE_string(
+    'device', None, 'ip:host of device')
+
+flags.DEFINE_string(
+    'server', None, 'ip:host of server')
+
+flags.DEFINE_integer(
+    'final_layer_on_device', -1,
+    'Index of the final layer to be put onto device')
+# MODIFIED BY JSJASON: END
 FLAGS = flags.FLAGS
 
 
@@ -125,8 +136,21 @@ def main(unused_argv):
   if FLAGS.run_once:
     eval_config.max_evals = 1
 
-  evaluator.evaluate(create_input_dict_fn, model_fn, eval_config, categories,
-                     FLAGS.checkpoint_dir, FLAGS.eval_dir)
+  if FLAGS.server:
+      # ADDED BY JSJASON: START
+      cluster_map = {
+        'server': [FLAGS.server],
+        'device': [FLAGS.device],
+      }
+
+      cluster = tf.train.ClusterSpec(cluster_map)
+      server = tf.train.Server(cluster, job_name='server')
+      # ADDED BY JSJASON: END
+      evaluator.evaluate(create_input_dict_fn, model_fn, eval_config, categories,
+                         FLAGS.checkpoint_dir, FLAGS.eval_dir, server.target)
+  else:
+      evaluator.evaluate(create_input_dict_fn, model_fn, eval_config, categories,
+                         FLAGS.checkpoint_dir, FLAGS.eval_dir)
 
 
 if __name__ == '__main__':

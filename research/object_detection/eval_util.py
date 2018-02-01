@@ -26,7 +26,6 @@ from object_detection.core import keypoint_ops
 from object_detection.core import standard_fields as fields
 from object_detection.utils import label_map_util
 from object_detection.utils import ops
-from object_detection.utils import visualization_utils as vis_utils
 from tensorflow.python.platform import tf_logging as logging
 
 slim = tf.contrib.slim
@@ -124,6 +123,8 @@ def visualize_detection_results(result_dict,
   detection_classes = np.int32((result_dict['detection_classes']))
   detection_keypoints = result_dict.get('detection_keypoints', None)
   detection_masks = result_dict.get('detection_masks', None)
+
+  from object_detection.utils import visualization_utils as vis_utils
 
   # Plot groundtruth underneath detections
   if show_groundtruth:

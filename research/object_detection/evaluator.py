@@ -167,6 +167,7 @@ def evaluate(create_input_dict_fn, create_model_fn, eval_config, categories,
       logging.info('Skipping image')
       counters['skipped'] += 1
       return {}
+    ''' do not use matlabplot (because of protobuf version conflict)
     global_step = tf.train.global_step(sess, tf.train.get_global_step())
     if batch_index < eval_config.num_visualizations:
       tag = 'image-{}'.format(batch_index)
@@ -178,6 +179,7 @@ def evaluate(create_input_dict_fn, create_model_fn, eval_config, categories,
           summary_dir=eval_dir,
           export_dir=eval_config.visualization_export_dir,
           show_groundtruth=eval_config.visualization_export_dir)
+    '''
     return result_dict
 
   variables_to_restore = tf.global_variables()

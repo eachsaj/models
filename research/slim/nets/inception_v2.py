@@ -23,6 +23,7 @@ import tensorflow as tf
 from nets import inception_utils
 
 slim = tf.contrib.slim
+FLAGS = tf.app.flags.FLAGS
 trunc_normal = lambda stddev: tf.truncated_normal_initializer(0.0, stddev)
 
 LAYERS = ['Conv2d_1a_3x3', 'Conv2d_2a_3x3', 'Conv2d_2b_3x3',
@@ -95,6 +96,8 @@ def inception_v2_base(inputs,
   layer_index = 0
 
   tf.logging.info('Net input: %s', str(inputs))
+  if FLAGS.final_layer_on_device != -1:
+    final_layer_on_device = FLAGS.final_layer_on_device
   tf.logging.info('Final endpoint: %s', str(final_endpoint))
 
   # Used to find thinned depths for each layer.

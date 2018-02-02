@@ -90,3 +90,9 @@ ENV/
 
 # PyCharm
 .idea/
+
+# Protobuf generated files
+protos
+
+# chrome timeline outputs
+timeline

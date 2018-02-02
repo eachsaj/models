@@ -26,6 +26,9 @@ from object_detection.core import prefetcher
 from object_detection.core import standard_fields as fields
 from object_detection.utils import object_detection_evaluation
 
+from tensorflow.python.client import timeline
+
+
 # A dictionary of metric names to classes that implement the metric. The classes
 # in the dictionary must implement
 # utils.object_detection_evaluation.DetectionEvaluator interface.
@@ -161,7 +164,15 @@ def evaluate(create_input_dict_fn, create_model_fn, eval_config, categories,
       result_dict: a dictionary of numpy arrays
     """
     try:
-      result_dict = sess.run(tensor_dict)
+      run_metadata = tf.RunMetadata()
+      result_dict = sess.run(tensor_dict,
+            options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
+            run_metadata=run_metadata)
+
+      trace = timeline.Timeline(step_stats=run_metadata.step_stats)
+      with open('timeline/timeline-%d.ctf.json' % counters['success'], 'w') as trace_file:
+        trace_file.write(trace.generate_chrome_trace_format())
+
       counters['success'] += 1
     except tf.errors.InvalidArgumentError:
       logging.info('Skipping image')

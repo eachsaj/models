@@ -56,7 +56,8 @@ def evaluate_once(master,
   if summary_op == _USE_DEFAULT:
     summary_op = summary.merge_all()
 
-  all_hooks = [evaluation.StopAfterNEvalsHook(num_evals),]
+  # all_hooks = [evaluation.StopAfterNEvalsHook(num_evals),]
+  all_hooks = []
 
   if summary_op is not None:
     all_hooks.append(evaluation.SummaryAtEndHook(
